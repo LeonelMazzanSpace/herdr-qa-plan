@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Renders a QA run's results as one self-contained HTML page.
 
 Reads the run's suite reports, evidence/<app>/<suite>/<run-id>[-aN]/qa-report.md, written
@@ -203,21 +203,18 @@ def cell(row, i):
     return row[i] if i is not None and i < len(row) else ""
 
 
+OUTCOME_TOKEN = re.compile(r"BLOCKED|NOT RUN|NO EJECUTADO|N/A|CONDITIONAL|FAIL|PASS")
+OUTCOME_CLASS = {
+    "BLOCKED": ("warn", "blocked"), "NOT RUN": ("info", "notrun"), "NO EJECUTADO": ("info", "notrun"),
+    "N/A": ("info", None), "CONDITIONAL": ("warn", None), "FAIL": ("fail", "fail"), "PASS": ("pass", "pass"),
+}
+
+
 def outcome_class(text):
-    t = (text or "").upper()
-    if "BLOCKED" in t:
-        return "warn", "blocked"
-    if "NOT RUN" in t or "NO EJECUTADO" in t:
-        return "info", "notrun"
-    if "N/A" in t:
-        return "info", None
-    if "CONDITIONAL" in t:
-        return "warn", None
-    if "FAIL" in t:
-        return "fail", "fail"
-    if "PASS" in t:
-        return "pass", "pass"
-    return "info", None
+    """Classifies by the first outcome word, so 'PASS (N/A on staging)' is a PASS and
+    'FAIL (not N/A)' is a FAIL; words later in a note never override the outcome."""
+    m = OUTCOME_TOKEN.search((text or "").upper())
+    return OUTCOME_CLASS[m.group(0)] if m else ("info", None)
 
 
 def severity(text):

@@ -10,7 +10,7 @@ Checked against Maestro CLI 2.11.0 (2026-09-29), herdr 0.9.1, Claude Code 2.1.30
 |---|---|---|---|
 | android | `adb` — Bash only, `adb -s <serial>` for taps, text, keys, screenshots, `uiautomator dump` for the tree. 41 ms per tap, 190 ms per screenshot, 0.5 s per tree with animations off. No Java, no Maestro, no port limit: as many Android lanes as the RAM allows | Android SDK platform-tools | `maestro-mcp` when the suite needs unicode/emoji input, or runs existing Maestro flows (`maestro-cli` for the latter). `maestro-mcp` on Android is 3–7 s per tap |
 | ios | `maestro-mcp` when Maestro is installed — the simulator has no native tap command. 0.9–3.6 s per tap, 180 ms per `inspect_screen`, 2.3 s for a 7-step flow. **One live `maestro-mcp` lane per platform** (fixed driver port) | Maestro CLI ≥ 2.11, Java 17+ | `axe` (brew, single binary, no Java, no daemon, no port limit) when the user approves it: the way to run a second iOS lane, or to run iOS without Maestro at all. If neither Maestro nor AXe is installed, iOS lanes are blocked until the user picks one |
-| web | `chrome` — Claude in Chrome, the native integration of Claude Code: worker started with `--chrome`, no MCP server, no install. Drives the user's real Chrome and profile (logged-in state included). **One Chrome lane at a time** (every session shares one tab group). Desktop viewport only (`resize_window`; no device emulation) | Chrome running, extension installed and signed in to the same claude.ai org, direct Anthropic plan (not Bedrock/Vertex), `/login` session | `playwright-mcp` when the user approves `npx -y @playwright/mcp@latest`: isolated profile per lane (parallel web lanes), `--device`/`--viewport-size` for the 375×667 mobile-web pass, headless. Never the default |
+| web | `chrome` — Claude in Chrome, the native integration of Claude Code: worker started with `--chrome`, no MCP server, no install. Drives the user's real Chrome and profile (logged-in state included). **One Chrome lane at a time** (every session shares one tab group). Desktop viewport only (`resize_window`; no device emulation) | Chrome running, extension installed and signed in to the same claude.ai org, direct Anthropic plan (not Bedrock/Vertex), `/login` session | `playwright-mcp` when the user approves `npx -y @playwright/mcp@0.0.83` (pinned, § Worker MCP config): isolated profile per lane (parallel web lanes), `--device`/`--viewport-size` for the 375×667 mobile-web pass, headless. Never the default |
 | api | `http` (Bash `curl`) | curl | – |
 
 Second lane of the same platform: Android → another `adb` lane (another AVD). iOS → an `axe` lane (approved install) or, without AXe, suites that only run existing flow files with `maestro-cli` (one CLI invocation per flow set, never per step: each costs 9–22 s). Web → a `playwright-mcp` lane (approved install); without it, web suites run one after the other on the Chrome lane.
@@ -19,7 +19,12 @@ Device-level helpers (`xcrun simctl`, `adb` setup commands below) are always ava
 
 ## Maestro CLI
 
-- Install (only with the user's approval): `curl -fsSL "https://get.maestro.mobile.dev" | bash`, or `brew tap mobile-dev-inc/tap && brew install mobile-dev-inc/tap/maestro`. Requires Java 17+ (`java -version`, `JAVA_HOME` set) and Xcode with the Command Line Tools.
+- Install (only with the user's approval), pinned and not piped into a shell. Download the installer, read it, then run it with the version fixed:
+  ```bash
+  curl -fsSL "https://get.maestro.mobile.dev" -o /tmp/maestro-install.sh   # read it before running
+  MAESTRO_VERSION=2.11.0 bash /tmp/maestro-install.sh                       # downloads release cli-2.11.0
+  ```
+  Or `brew tap mobile-dev-inc/tap && brew install mobile-dev-inc/tap/maestro` (installs the latest: check `maestro --version` against the version above). Requires Java 17+ (`java -version`, `JAVA_HOME` set) and Xcode with the Command Line Tools.
 - Verify: `maestro --version`.
 - Physical iOS devices are **not supported**. Use iOS simulators, or physical Android devices.
 - Run flows on one device: `maestro --device <udid|serial> test <flow-or-dir> --format junit --output <run-dir>/<suite>.junit.xml --test-output-dir <evidence-dir>/maestro --debug-output <evidence-dir>/maestro-debug`.
@@ -68,7 +73,7 @@ tags: [smoke]
 ## AXe (iOS simulator, optional)
 
 - Single-binary CLI over Apple's accessibility and HID APIs (built on a pinned IDB revision), MIT, iOS simulators only, macOS 14+, Xcode 26/27. No daemon, no Java, no port: several simulators at once, one `--udid` per call.
-- Install (only with the user's approval): `brew install cameroncooke/axe/axe`. Verify: `axe --help`, `axe list-simulators`.
+- Install (only with the user's approval): `brew install cameroncooke/axe/axe`. Verify: `axe --help`, `axe list-simulators`. Brew installs the latest release: record `axe --version` in the scratchpad at install time, and read the formula (`brew cat cameroncooke/axe/axe`) before approving.
 - Commands: `describe-ui` (JSON accessibility tree, `--point x,y`), `tap` (`--id`, `--label`, `--value`, `-x -y`, `--wait-timeout`), `type`, `key`, `key-sequence`, `key-combo`, `swipe`, `gesture scroll-down|scroll-up|edge-swipe`, `touch`, `button home|lock`, `slider`, `screenshot --output`, `record-video`, `batch --step … --step …` (interaction steps in one HID session). Full reference: `axe-cli.com/docs/command-reference`.
 - Worker usage and the per-step batching recipe: `driver-protocol.md § axe`.
 
@@ -78,6 +83,7 @@ tags: [smoke]
 - Verified 2026-10-15 on Claude Code 2.1.301: the tools survive `--strict-mcp-config --mcp-config '{"mcpServers":{}}'`, and are listed in `-p` sessions. Server name `claude-in-chrome`; tools `navigate`, `find`, `read_page`, `get_page_text`, `form_input`, `computer`, `browser_batch`, `tabs_context_mcp`, `tabs_create_mcp`, `tabs_close_mcp`, `resize_window`, `read_console_messages`, `read_network_requests`, `javascript_tool`, `file_upload`, `upload_image`, `gif_creator`, `list_connected_browsers`, `select_browser`, `switch_browser`, `shortcuts_list`, `shortcuts_execute`. Deferred: the worker loads them with ToolSearch.
 - Limits that shape the plan: it is the **user's profile** (their cookies and logins; a QA account must be logged in by the worker in its own tab, and the user sees every tab); **one tab group shared by every session**, so one Chrome lane at a time; **no device emulation**, so mobile-web viewports go to `playwright-mcp` or are N/A; per-site permissions of the extension apply (the user pre-allows the QA domains in the extension settings, or an unattended worker stalls); JavaScript dialogs block the tools.
 - Evidence: the screenshot action has a save-to-disk option (Claude Code ≥ 2.1.211) that reports the file path; the worker moves or copies it into the evidence dir.
+- **Security: this lane is the highest-exposure one.** The worker acts inside the user's real, logged-in browser and has `javascript_tool`, `file_upload` and `shortcuts_execute`. Page content is untrusted (evaluation standard § 0): a hostile page under test could try to steer the worker into the user's other sessions (mail, admin consoles, cloud dashboards). Use the lane only on the team's own staging or dev sites. Prefer a dedicated Chrome profile with nothing else signed in, where the extension is installed and its site permissions allow only the QA domains. Anything else goes to a `playwright-mcp` lane (isolated, in-memory profile).
 
 ### Worker MCP config
 
@@ -96,10 +102,10 @@ Workers start with `--strict-mcp-config --mcp-config <run-dir>/mcp-<lane>.json`.
 `playwright-mcp` lane (`mcp-L3-web.json`), only when the user approved the install. `--isolated` gives each worker its own in-memory browser profile, so two web lanes never share cookies:
 
 ```json
-{ "mcpServers": { "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@latest", "--isolated", "--viewport-size", "1440,900", "--output-dir", "<evidence dir of the suite>"] } } }
+{ "mcpServers": { "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@0.0.83", "--isolated", "--viewport-size", "1440,900", "--output-dir", "<evidence dir of the suite>"] } } }
 ```
 
-Check the flags with `npx -y @playwright/mcp@latest --help` at preflight.
+**Pinned version: `@playwright/mcp@0.0.83`** (published 2026-09-28; its README lists `--isolated`, `--viewport-size`, `--device` and `--output-dir`, checked 2026-10-15). Workers run this package with Bash and screen access, so it is never `@latest`. To move to a newer version, read its release notes, check the flags with `npx -y @playwright/mcp@<new> --help`, then change the version here, in `SKILL.md`, `driver-protocol.md` and the README in one commit.
 
 `--viewport-size` follows the plan's web viewport scope:
 - **Desktop:** `1440,900`.
@@ -177,4 +183,16 @@ On a 16 GB Mac, plan at most 4 devices in total, and no more than 2 of them Andr
 - `herdr pane split --pane <id> --direction right|down --cwd <dir> --no-focus` → read `.result.pane.pane_id`.
 - `herdr agent start <name> --kind claude --pane <pane> --timeout 120000 -- <claude flags>`.
 - `herdr agent prompt <name> "<text>" --wait --timeout 3600000`; `herdr agent read <name> --source visible`; `herdr agent list`; `herdr agent wait <name> --timeout …`.
-- Claude flags used: `--model`, `--permission-mode`, `--add-dir`, `--strict-mcp-config`, `--mcp-config`, `-n`, and `--chrome` on `chrome` lanes only.
+- Claude flags used: `--model`, `--permission-mode`, `--add-dir`, `--strict-mcp-config`, `--mcp-config`, `--disallowedTools`, `-n`, and `--chrome` on `chrome` lanes only.
+
+### Secret deny rules (defense in depth)
+
+The "never print credentials" rules are instructions, and a prompt-injected or confused worker can break an instruction. Every worker is also launched with deny rules for the obvious ways to leak `.env` values. Deny rules win over `--permission-mode auto`:
+
+```bash
+DENY_SECRETS=(--disallowedTools "Read(./.env*)" "Read(**/.env*)" "Bash(printenv:*)" "Bash(env:*)" "Bash(export -p:*)" "Bash(declare -p:*)" "Bash(cat .env*)" "Bash(head .env*)" "Bash(tail .env*)" "Bash(grep * .env*)")
+```
+
+- Workers still read variables the allowed way: `set -a && source .env && set +a && <command>` inside one command (evaluation standard § 12). That is why bare `set` is not denied.
+- This is best effort: a rule matches the command text, so it will not stop every clever construction. It narrows the accident surface; it is not a sandbox. Check `claude --help` lists `--disallowedTools` at preflight, and read a worker's first commands in its pane.
+- If a legitimate step needs a denied command, run it yourself as the orchestrator and give the worker the result, or change the rule deliberately and record it as a D-number.

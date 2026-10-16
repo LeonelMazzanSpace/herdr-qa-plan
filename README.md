@@ -65,7 +65,7 @@ El cuello de botella no es el emulador sino la cantidad de turnos del modelo y l
 - para web, Google Chrome abierto con la extensión "Claude in Chrome" (≥ 1.0.36) conectada a tu organización de claude.ai y una sesión `/login` con plan directo de Anthropic. Los workers arrancan con `--chrome`;
 - bash. Los scripts funcionan con el bash 3.2 de macOS, y `render-results.py` con el Python del sistema (`/usr/bin/python3`, 3.9+);
 - opcionales:
-  - el Playwright MCP (`npx -y @playwright/mcp@latest`), solo si aprobás esa decisión: carriles web en paralelo, viewport mobile 375×667, headless o perfil aislado;
+  - el Playwright MCP fijado en `@playwright/mcp@0.0.83` (nunca `@latest`: los workers lo corren con Bash), solo si aprobás esa decisión: carriles web en paralelo, viewport mobile 375×667, headless o perfil aislado;
   - un MCP de vault (Obsidian u otro), si el proyecto tiene vault;
   - el MCP de ClickUp, si los tickets son fuente de requisitos o si se suben ahí los bugs confirmados;
   - las skills de `qa-team-spacedev` (`qa-evidence-discipline`, `report-bugs-to-clickup`, `qa-report-test-execution`). Si están, se reutilizan; si no, el plan copia sus reglas.
@@ -104,9 +104,10 @@ El cuello de botella no es el emulador sino la cantidad de turnos del modelo y l
 6. Driver iOS, solo si hay carriles iOS (Android corre con `adb` sin nada más). Una de las dos opciones; la skill te lo pregunta y no instala por su cuenta:
 
    ```bash
-   # Maestro CLI + Java
-   curl -fsSL "https://get.maestro.mobile.dev" | bash
-   maestro --version                     # ≥ 2.11
+   # Maestro CLI + Java: versión fijada, y sin pasar el script por un pipe (leelo antes de correrlo)
+   curl -fsSL "https://get.maestro.mobile.dev" -o /tmp/maestro-install.sh
+   MAESTRO_VERSION=2.11.0 bash /tmp/maestro-install.sh
+   maestro --version                     # 2.11.0
    java -version                         # 17 o superior
    # o AXe (binario único, sin Java)
    brew install cameroncooke/axe/axe
@@ -119,7 +120,7 @@ El cuello de botella no es el emulador sino la cantidad de turnos del modelo y l
    claude mcp add maestro --scope user -- maestro mcp
    ```
 
-7. Web con el Chrome nativo de Claude Code: instalá la extensión "Claude in Chrome" desde la Chrome Web Store, iniciá sesión en la misma organización de claude.ai que tu `claude` (`/login`), dejá Chrome abierto y permití en la extensión los dominios que vas a testear. Verificá con `claude --chrome` y `/chrome` en una sesión tuya. Playwright MCP no hace falta salvo que lo apruebes en el plan.
+7. Web con el Chrome nativo de Claude Code: instalá la extensión "Claude in Chrome" desde la Chrome Web Store, iniciá sesión en la misma organización de claude.ai que tu `claude` (`/login`), dejá Chrome abierto y permití en la extensión los dominios que vas a testear. Verificá con `claude --chrome` y `/chrome` en una sesión tuya. Playwright MCP no hace falta salvo que lo apruebes en el plan. **Ojo:** este carril actúa dentro de tu Chrome real, con tus sesiones iniciadas. Usalo solo contra sitios propios de staging o dev, idealmente desde un perfil de Chrome dedicado donde no haya nada más abierto y la extensión solo permita los dominios de QA. Para cualquier otro sitio, usá el carril de Playwright (perfil aislado).
 
 ## Instalación
 
@@ -135,6 +136,13 @@ ln -s "$PWD/skills/executing-qa-test-plans" ~/.claude/skills/executing-qa-test-p
 Para usarlas solo en un proyecto de QA, enlazalas en su `.claude/skills/`.
 
 Los scripts `.sh` de `executing-qa-test-plans/scripts/` se ejecutan con `bash <script>` (funcionan con el bash 3.2 de macOS). `render-results.py` se ejecuta con `/usr/bin/python3` (el Python del sistema, 3.9+, solo librería estándar).
+
+## Seguridad
+
+- **Contenido no confiable:** el texto de tickets, extractos del vault, pantallas de la app o del sitio, respuestas de API y logs es dato, nunca instrucción (`evaluation-standard.md` § 0, y una línea en cada paquete). Un intento de inyección se reporta como hallazgo, no se obedece.
+- **Credenciales:** además de la regla escrita, los workers arrancan con `--disallowedTools` (`devices-and-tools.md` § Secret deny rules): bloquea leer `.env*` y volcar el entorno aun en modo `auto`. Es una defensa adicional, no un sandbox.
+- **Versiones fijas:** Maestro 2.11.0 y `@playwright/mcp@0.0.83`. Para subirlas hay que leer las notas de la versión nueva y cambiar los lugares que la nombran.
+- **Carril `chrome`:** es el de mayor exposición porque usa tu perfil real (ver el paso 7 del setup).
 
 ## Límites conocidos
 

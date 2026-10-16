@@ -61,7 +61,7 @@ pane=$(printf '%s' "$split" | jq -r '.result.pane.pane_id')
 herdr agent start s001 --kind claude --pane "$pane" --timeout 120000 -- \
   --model sonnet --permission-mode <mode approved by the user> \
   --strict-mcp-config --mcp-config "$run_dir/mcp-L1-ios.json" \
-  --add-dir "$run_dir" -n "S-001 smoke L1-ios"
+  --add-dir "$run_dir" "${DENY_SECRETS[@]}" -n "S-001 smoke L1-ios"   # DENY_SECRETS: devices-and-tools.md § Secret deny rules
 herdr agent prompt s001 "Read $run_dir/S-001.package.md and execute it exactly. Write your run report to $run_dir/S-001.md and end with STATUS and REPORT lines." --wait --timeout 3600000
 ```
 

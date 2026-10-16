@@ -91,13 +91,13 @@ Example: the same preflight, asked this way.
 1. `test "$HERDR_ENV" = 1`. If it fails, ask the user to start the orchestrator inside a Herdr pane.
 2. Read `QA-SCRATCHPAD.md` (create it from `scratchpad-template.md` if missing), the plan and its summary. Every `to confirm` decision that a lane needs must be answered before that lane is dispatched: permission mode, extra devices, Maestro install, production access. Ask them all in one message, shaped as in "Asking the User".
 3. **Tooling.** Check each and record the result in the scratchpad:
-   - `herdr --version`; `claude --help` for `--model`, `--permission-mode`, `--strict-mcp-config`, `--mcp-config`, `--add-dir`, `-n`; `jq --version`;
+   - `herdr --version`; `claude --help` for `--model`, `--permission-mode`, `--strict-mcp-config`, `--mcp-config`, `--add-dir`, `--disallowedTools`, `-n`; `jq --version`;
    - per lane, only what its `Tool:` needs (`devices-and-tools.md` § Driver choice per lane):
      - `adb`: `adb version`, `emulator -list-avds`. No Maestro, no Java;
      - `maestro-mcp` / `maestro-cli`: `maestro --version` (≥ 2.11), `java -version` (17+), plus `xcrun simctl help` or `adb version` for its platform;
      - `axe`: `axe --help`, `axe list-simulators`;
      - `chrome`: Chrome is running (`pgrep -x "Google Chrome"`), the Claude in Chrome extension is installed and signed in (the user confirms; `/chrome` in your own session shows the connection), and `claude --help` lists `--chrome`;
-     - `playwright-mcp` (only when its install decision is `approved`): `npx -y @playwright/mcp@latest --help` for `--isolated`, `--viewport-size`, `--device` and `--output-dir`;
+     - `playwright-mcp` (only when its install decision is `approved`): `npx -y @playwright/mcp@0.0.83 --help` (the version pinned in `devices-and-tools.md`; never `@latest`) for `--isolated`, `--viewport-size`, `--device` and `--output-dir`;
      - `http`: `curl --version`.
 
    Check only the tooling the plan's lanes use. A web-only run never asks for Maestro; a mobile-only run never starts a browser; an Android-only run never needs Java.
@@ -144,8 +144,10 @@ Dispatch while there are fewer than **6 live worker panes** (test and verify wor
    - Reuse a pane freed by `/exit` before splitting a new one.
 3. **Launch:**
    ```bash
-   herdr agent start s0NN --kind claude --pane <pane> --timeout 120000 -- --model <plan model> --permission-mode <approved mode> --strict-mcp-config --mcp-config <run-dir>/mcp-<lane>.json --add-dir <run-dir> -n "S-0NN <strategy> <lane>"
+   herdr agent start s0NN --kind claude --pane <pane> --timeout 120000 -- --model <plan model> --permission-mode <approved mode> --strict-mcp-config --mcp-config <run-dir>/mcp-<lane>.json --add-dir <run-dir> --disallowedTools <secret deny rules> -n "S-0NN <strategy> <lane>"
    ```
+   `<secret deny rules>` is the `DENY_SECRETS` list in `devices-and-tools.md` § Secret deny rules. It blocks reading `.env*` and dumping the environment even in `auto` mode. Add it to verify workers too.
+
    A `chrome` lane adds `--chrome` after `--strict-mcp-config`. Its first-ever launch on this Mac may show a one-time Chrome dialog that needs Enter: read the pane and tell the user.
 4. **Verify the effective model** on the status line (`herdr agent read s0NN --source visible`) and record it.
 5. **Prompt once,** as a Bash call with `run_in_background: true`, so you stay free; you are notified when it returns:
