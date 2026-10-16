@@ -17,7 +17,7 @@ Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Status: <planning | executing â
 
 ## References and environment
 <Plan, summary, run dir (~/.cache/qa-runs/<run-id>), evidence root>
-<Verified versions: herdr, Claude Code (launch flags), Maestro CLI, Maestro MCP tools listed, Playwright MCP, Java, Xcode runtimes, Android emulator>
+<Verified versions: herdr, Claude Code (launch flags, `--chrome`), per lane driver: adb / Maestro CLI + MCP tools listed / AXe / Chrome extension connected / Playwright MCP (approved only), Java, Xcode runtimes, Android emulator. Install decisions and their status>
 <Vault: name / none (reason) Â· ClickUp: source tickets, destination list / none (reason)>
 
 ## Lanes

@@ -46,17 +46,19 @@ Every strategy from the catalog, with no omissions.
 - Known non-bug quirks: <list, or "see context/navigation-map.md § Known Non-Bug Quirks", or "none recorded">.
 - Never create, modify or delete production data. Never complete a purchase or payment, press a bulk or external-facing control (emails, notifications to real people), or approve/deny third-party records, unless this plan's decisions explicitly allow it.
 - Credentials are referenced by `.env` variable name only. Never print, echo or write their values.
-- Workers never create ClickUp tickets, never write to the vault, never install tools, and never boot, shut down, erase or reinstall a device that is not their own lane's.
+- Workers never create ClickUp tickets, never write to the vault, never install or download tools (no `brew`, no `npx`, no `curl | bash`), and never boot, shut down, erase or reinstall a device that is not their own lane's.
 - <Project-specific constraints: test environment only, rate limits, demo data rules.>
 
 ## Device matrix
 
-| Lane | Platform | Device | OS | Device id | Maestro/driver port | Build installed | Owner rule |
+| Lane | Platform | Device | OS | Device id | Driver (`Tool:`) | Build installed | Owner rule |
 |---|---|---|---|---|---|---|---|
-| L1-ios | ios | iPhone 16 Pro (simulator) | iOS 18.2 | `<udid>` | – | <.app path> | one worker at a time |
-| L2-android | android | Pixel_8_API_34 (emulator) | API 34 | `emulator-5554` | console 5554 | <.apk path> | one worker at a time |
-| L3-web | web | Chromium (Playwright MCP, isolated) | – | – | – | <base URL> | one worker at a time |
-| L4-api | api | none (Bash `curl`) | – | – | – | <API base URL · version> | one worker at a time |
+| L1-ios | ios | iPhone 16 Pro (simulator) | iOS 18.2 | `<udid>` | `maestro-mcp` (installed) · or `axe` (D<n>, to confirm) | <.app path> | one worker at a time; one `maestro-mcp` lane per platform |
+| L2-android | android | Pixel_8_API_34 (emulator) | API 34 | `emulator-5554` (console 5554) | `adb` (no install) | <.apk path> | one worker at a time |
+| L3-web | web | Chrome (Claude in Chrome, the user's profile) | – | – | `chrome` (`--chrome`, no install) | <base URL> | one worker at a time; the only Chrome lane |
+| L4-api | api | none (Bash `curl`) | – | – | `http` | <API base URL · version> | one worker at a time |
+
+Drivers come from `devices-and-tools.md` § Driver choice per lane (executing-qa-test-plans). A lane whose driver is not installed names the decision that installs it.
 
 ## Test data and accounts
 
@@ -74,17 +76,17 @@ Each lane creates and edits only data in its own range, so parallel lanes never 
 ## Worker environment
 
 - You run in your own Herdr pane, from the QA project root `<absolute path>`. You own exactly one lane: the device in your package. No other worker touches it while you run; you touch no other device.
-- Mobile: drive the device with the Maestro MCP tools, always passing your lane's device id; or with `maestro --device <device id> test <flow>` for scripted flows. Web: the Playwright MCP tools, viewport(s) <Desktop 1440×900 | Mobile web 375×667 | Both: start at 1440×900, then `browser_resize` to 375×667 and repeat, screenshots per viewport>. API: Bash `curl` only, following the evaluation standard § 12.
+- Your driver is the `Tool:` of your suite; its commands and the Driver protocol (one batched call per step, look once per screen, verify by text, screenshots to files) are at the end of your package. Android `adb`: Bash with `adb -s <serial>`. iOS `maestro-mcp`: the Maestro MCP tools with your `device_id`; `axe`: Bash with `axe … --udid`. Web `chrome`: the Claude in Chrome tools in tabs you create, viewport <Desktop 1440×900 via `resize_window`>; `playwright-mcp` (only when approved): viewport(s) <Desktop 1440×900 | Mobile web 375×667 | Both: start at 1440×900, then `browser_resize` to 375×667 and repeat, screenshots per viewport>. API: Bash `curl` only, following the evaluation standard § 12.
 - Read `.env` only through Bash, inside one command: `set -a && source .env && set +a`, then use the variables. Never `Read`, `cat` or print it.
 - Evidence goes to `evidence/<app-slug>/<suite-id>-<slug>/<run-id>/` (a full restart uses `<run-id>-a<N>`), so no run ever overwrites another: numbered screenshots `01-<what>.png` and `qa-report.md`.
 - New Maestro flows you write go only under `maestro/flows/<suite-id>/`. Do not edit flows owned by other suites.
-- Do not create `*.js` or other driver scripts. Maestro YAML flows are test assets and are allowed where the suite says so.
+- Do not create `*.js` or other driver scripts, and do not install or download anything. Maestro YAML flows are test assets and are allowed where the suite says so.
 
 ## Suites
 
 ### Suite S-001: <title>
 
-**Strategy:** smoke · **Platform:** ios · **Lane:** L1-ios · **Tool:** maestro-mcp · **Model:** sonnet · **Priority:** P0 · **Depends on:** none · **Timebox:** 20 min · **Vault:** none · **ClickUp:** none
+**Strategy:** smoke · **Platform:** android · **Lane:** L2-android · **Tool:** adb · **Model:** sonnet · **Priority:** P0 · **Depends on:** none · **Timebox:** 20 min · **Vault:** none · **ClickUp:** none
 
 **Objective / charter:** <for exploratory: "Explore <area> with <resources> to discover <risk>">
 
@@ -94,7 +96,7 @@ Each lane creates and edits only data in its own range, so parallel lanes never 
 
 | ID | Scenario | Steps | Expected | Technique |
 |---|---|---|---|---|
-| S-001-01 | App launches to login | launch app | login screen visible, no crash dialog | smoke |
+| S-001-01 | App launches to login | launch app | text "Iniciar sesión" in the tree, no crash dialog | smoke |
 | S-001-02 | … | … | … | … |
 
 **Out of scope:** <what this suite does not check>
@@ -119,7 +121,7 @@ Each lane creates and edits only data in its own range, so parallel lanes never 
 | Strategy | a name from `strategy-catalog.md` |
 | Platform | `ios` · `android` · `web` · `api` · `none` (comparison suites) |
 | Lane | a lane id from the Device matrix, or `none` |
-| Tool | `maestro-mcp` · `maestro-cli` · `playwright-mcp` · `http` · `shell` · combinations with `+` |
+| Tool | `adb` (Android default) · `maestro-mcp` (iOS default when installed) · `axe` (iOS, approved install) · `maestro-cli` (existing flow files only) · `chrome` (web default) · `playwright-mcp` (web, approved install) · `http` · `shell` · combinations with `+` |
 | Model | `opus` · `sonnet` · `haiku` |
 | Priority | `P0` · `P1` · `P2` |
 | Depends on | suite ids (`S-001 accepted`), or `none` |

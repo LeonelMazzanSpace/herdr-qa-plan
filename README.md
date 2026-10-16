@@ -1,6 +1,15 @@
 # Skills de QA mobile + desktop web con Herdr
 
-Dos skills para planificar y ejecutar QA de una app mobile (simuladores iOS de Xcode y emuladores Android de Android Studio, con Maestro CLI + Maestro MCP) y de su versión web desktop (Playwright MCP). Un orquestador Claude reparte cada estrategia de test a un worker Claude independiente en su propio panel de Herdr, y cada worker maneja un único dispositivo.
+Dos skills para planificar y ejecutar QA de una app mobile (simuladores iOS de Xcode y emuladores Android de Android Studio) y de su versión web (Chrome). Un orquestador Claude reparte cada estrategia de test a un worker Claude independiente en su propio panel de Herdr, y cada worker maneja un único dispositivo con el driver de su carril:
+
+| Plataforma | Driver por defecto | Instala algo | Alternativa (solo con tu OK) |
+|---|---|---|---|
+| Android | `adb` directo (tap 41 ms, captura 190 ms, árbol 0,5 s) | no | `maestro-mcp` para tipear unicode/emoji o correr flows Maestro existentes |
+| iOS | `maestro-mcp` si Maestro ya está instalado (un carril por plataforma) | no, si ya está | `axe` (brew, sin Java, sin límite de carriles) o instalar Maestro |
+| Web | `chrome`: el Chrome nativo de Claude Code (`--chrome`), tu propio perfil, un carril a la vez | no | `playwright-mcp` (npx) para carriles web en paralelo o el viewport mobile 375×667 |
+| API | `curl` | no | – |
+
+**Ninguna skill instala nada sin preguntarte.** Maestro, AXe, Playwright MCP o Java aparecen en el plan como decisión `to confirm`; si decís que no, los carriles que lo necesitaban quedan bloqueados y el resto corre igual.
 
 Las dos son **solo manuales** (`disable-model-invocation: true`): Claude nunca las carga por su cuenta, solo corren cuando las llamás con `/writing-qa-test-plans` o `/executing-qa-test-plans`.
 
@@ -25,6 +34,16 @@ Lo mismo que `qa-team-spacedev`, extendido a iOS, Android y API. Está en `execu
 - **Fallas conocidas según el registro:** ticket abierto = conocida; cerrado "as designed" = comportamiento esperado; cerrado por otro motivo = posible regresión.
 - **Regresión:** datos de prueba vencidos marcados aparte, aviso de flujos que no corren hace más de 30 días y oferta de sumar flujos al set de regresión.
 
+## Cómo interactúan rápido con el dispositivo
+
+El cuello de botella no es el emulador sino la cantidad de turnos del modelo y los bytes que vuelven en cada uno. `executing-qa-test-plans/driver-protocol.md` se agrega a cada paquete con las reglas y las latencias medidas (2026-10-15, M2 Pro 16 GB):
+
+- mirar el árbol una vez por pantalla y actuar por texto/id/bounds, nunca adivinar coordenadas desde una captura;
+- una sola llamada por paso del escenario (flow Maestro de varios comandos, `axe batch`, un Bash con varias líneas de `adb`, `browser_batch` en Chrome);
+- verificar por texto (`assertVisible` ≈ 150 ms, `grep` sobre el dump) y guardar capturas directo a archivo; la imagen inline (160–250 KB) solo cuando el chequeo es visual;
+- nunca `maestro test` ni `maestro hierarchy` por paso (9–22 s cada invocación); el CLI solo corre archivos de flows enteros;
+- animaciones apagadas en Android (`uiautomator dump` baja de 2,1 s a 0,5 s).
+
 ## Fuentes opcionales
 
 - **Vault (Obsidian u otro MCP):** si está conectado y tiene notas del proyecto, el plan las cita y el orquestador copia los extractos en los paquetes. Si no hay vault, o el MCP no conecta, el plan dice `Vault: none (motivo)` y sigue igual. Los archivos del vault nunca se leen desde el disco.
@@ -41,11 +60,12 @@ Lo mismo que `qa-team-spacedev`, extendido a iOS, Android y API. Está en `execu
 - Claude Code;
 - los skills `herdr` y `herdr-agent-orchestration`;
 - el plugin Superpowers (`verification-before-completion`);
-- Xcode con simuladores, y Android Studio con al menos un AVD (`emulator`, `adb`);
-- Maestro CLI ≥ 2.11 y Java 17+. Los workers reciben el Maestro MCP (`maestro mcp`) por `--mcp-config`;
+- Xcode con simuladores, y Android Studio con al menos un AVD (`emulator`, `adb`). Con eso alcanza para los carriles Android (`adb`);
+- para iOS, uno de los dos: Maestro CLI ≥ 2.11 con Java 17+ (los workers reciben el Maestro MCP por `--mcp-config`), o AXe (`brew install cameroncooke/axe/axe`). Ninguno se instala sin tu OK;
+- para web, Google Chrome abierto con la extensión "Claude in Chrome" (≥ 1.0.36) conectada a tu organización de claude.ai y una sesión `/login` con plan directo de Anthropic. Los workers arrancan con `--chrome`;
 - bash. Los scripts funcionan con el bash 3.2 de macOS, y `render-results.py` con el Python del sistema (`/usr/bin/python3`, 3.9+);
 - opcionales:
-  - el Playwright MCP (`npx -y @playwright/mcp@latest`), si hay suites web;
+  - el Playwright MCP (`npx -y @playwright/mcp@latest`), solo si aprobás esa decisión: carriles web en paralelo, viewport mobile 375×667, headless o perfil aislado;
   - un MCP de vault (Obsidian u otro), si el proyecto tiene vault;
   - el MCP de ClickUp, si los tickets son fuente de requisitos o si se suben ahí los bugs confirmados;
   - las skills de `qa-team-spacedev` (`qa-evidence-discipline`, `report-bugs-to-clickup`, `qa-report-test-execution`). Si están, se reutilizan; si no, el plan copia sus reglas.
@@ -81,12 +101,16 @@ Lo mismo que `qa-team-spacedev`, extendido a iOS, Android y API. Está en `execu
    adb version
    ```
 
-6. Maestro CLI y Java:
+6. Driver iOS, solo si hay carriles iOS (Android corre con `adb` sin nada más). Una de las dos opciones; la skill te lo pregunta y no instala por su cuenta:
 
    ```bash
+   # Maestro CLI + Java
    curl -fsSL "https://get.maestro.mobile.dev" | bash
    maestro --version                     # ≥ 2.11
    java -version                         # 17 o superior
+   # o AXe (binario único, sin Java)
+   brew install cameroncooke/axe/axe
+   axe list-simulators
    ```
 
    Para usar el Maestro MCP vos de forma interactiva:
@@ -94,6 +118,8 @@ Lo mismo que `qa-team-spacedev`, extendido a iOS, Android y API. Está en `execu
    ```bash
    claude mcp add maestro --scope user -- maestro mcp
    ```
+
+7. Web con el Chrome nativo de Claude Code: instalá la extensión "Claude in Chrome" desde la Chrome Web Store, iniciá sesión en la misma organización de claude.ai que tu `claude` (`/login`), dejá Chrome abierto y permití en la extensión los dominios que vas a testear. Verificá con `claude --chrome` y `/chrome` en una sesión tuya. Playwright MCP no hace falta salvo que lo apruebes en el plan.
 
 ## Instalación
 
@@ -112,7 +138,9 @@ Los scripts `.sh` de `executing-qa-test-plans/scripts/` se ejecutan con `bash <s
 
 ## Límites conocidos
 
-- Maestro no soporta dispositivos iOS físicos: el testing iOS se hace en simuladores.
-- El Maestro MCP usa puertos fijos por plataforma. Por eso corre como máximo un worker con MCP por plataforma a la vez, y los carriles extra de esa plataforma usan `maestro test` por CLI.
+- Maestro y AXe no soportan dispositivos iOS físicos: el testing iOS se hace en simuladores.
+- El Maestro MCP usa puertos fijos por plataforma. Por eso corre como máximo un worker con MCP por plataforma a la vez; los carriles Android extra usan `adb`, y los iOS extra usan AXe (con tu OK) o `maestro test` solo sobre flows existentes.
+- El Chrome nativo comparte un solo grupo de pestañas entre todas las sesiones de Claude Code y usa tu perfil: un carril web a la vez, y lo que el worker abra lo ves vos. No emula viewports mobile.
+- `adb shell input text` no tipea acentos ni emoji: esos escenarios van a un carril `maestro-mcp` o quedan `N/A (driver)`.
 - El simulador de iOS no tiene throttling de red por línea de comandos.
 - Las mediciones de performance en emulador son indicativas, no equivalen a las de un dispositivo real.

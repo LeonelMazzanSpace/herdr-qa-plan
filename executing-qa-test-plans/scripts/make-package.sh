@@ -52,11 +52,13 @@ done
 [ "$ROLE" != verify ] || [ -n "$FINDINGS" ] || die "--role verify needs --findings <file>"
 STANDARD="$(cd "$(dirname "$0")/.." && pwd)/evaluation-standard.md"
 [ -f "$STANDARD" ] || die "evaluation standard not found: $STANDARD"
+PROTOCOL="$(cd "$(dirname "$0")/.." && pwd)/driver-protocol.md"
+[ -f "$PROTOCOL" ] || die "driver protocol not found: $PROTOCOL"
 
-# Prints the first section at heading level $2 whose text is exactly $1, or $1
-# followed by " (…)"; a $1 ending in ":" matches as a prefix ("Suite S-004:").
-# Stops at the next heading of the same or higher level. Headings inside code
-# fences are ignored; CRLF line endings are tolerated.
+# Prints the first section of file $3 (default: the plan) at heading level $2
+# whose text is exactly $1, or $1 followed by " (…)"; a $1 ending in ":" matches
+# as a prefix ("Suite S-004:"). Stops at the next heading of the same or higher
+# level. Headings inside code fences are ignored; CRLF line endings are tolerated.
 section() {
   awk -v want="$1" -v lvl="$2" '
     function heading_level(line) { return match(line, /^#+ /) ? RLENGTH - 1 : 0 }
@@ -78,8 +80,11 @@ section() {
     END {
       while (n > 0 && (buf[n] ~ /^[[:space:]]*$/ || buf[n] == "---")) n--
       for (i = 1; i <= n; i++) print buf[i]
-    }' "$PLAN"
+    }' "${3:-$PLAN}"
 }
+
+# Demotes "## " headings one level, outside code fences.
+demote() { sed -e '/^```/,/^```/!s/^## /### /'; }
 
 required() {
   out=$(section "$1" "$2")
@@ -131,15 +136,18 @@ if [ "$ROLE" = verify ]; then
 else
   ROLE_LINE="test_worker (single suite, no orchestration)"
   OBJECTIVE="execute **only** the suite \"$SUITE\" quoted at the end, every scenario, on your lane's device, within its timebox, and write the reports."
-  METHOD="Follow the scenarios in order. Evidence rules are in Global Constraints. Screenshot every anomaly at the moment you see it, before retrying. Diagnose before reporting: inspect the screen (Maestro \`inspect_screen\` / Playwright snapshot) to rule out a wrong selector or a wrong interaction. If the suite's smoke dependency fails or a precondition is missing, the affected scenarios are BLOCKED, never FAIL. If the timebox runs out, stop and report the remaining scenarios as \`not run (timebox)\`."
+  METHOD="Follow the scenarios in order, one batched driver call per scenario step where no decision is needed in between (Driver protocol at the end of this package: look once per screen, act from the tree, verify by text, screenshots to files). Evidence rules are in Global Constraints. Screenshot every anomaly at the moment you see it, before retrying. Diagnose before reporting: inspect the screen with your driver to rule out a wrong selector or a wrong interaction. If the suite's smoke dependency fails or a precondition is missing, the affected scenarios are BLOCKED, never FAIL. If the timebox runs out, stop and report the remaining scenarios as \`not run (timebox)\`."
   OUTPUT="Output, two files: (1) \`$EVIDENCE/qa-report.md\` exactly as \"Report template\" (§ 13) of the Evaluation standard at the end of this package, with the quality score (§ 3), severities (§ 2), the accessibility (§ 6) and console/logs (§ 7) tables, and the strategy-specific sections that apply. (2) \`$REPORT\` with: Suite, Attempt, Status (PASS = suite executed to the end or timebox | FAIL = could not execute it properly | BLOCKED = could not start), the model you ran as (from your status line, else \"not verified\"), the quality score and status, counts of PASS / FAIL / BLOCKED / not run, the list of FAIL scenario IDs with bug IDs and evidence paths, blockers, test data flags, records created in your data range (for cleanup), and the ledger lines you wrote, if any."
 fi
 
 case $TOOL in
   *maestro-mcp*) DRIVER_CHECK="your session must list the Maestro MCP tools \`list_devices\`, \`inspect_screen\`, \`take_screenshot\` and \`run\` (load them with ToolSearch if deferred), and \`list_devices\` must show \`$DEVICE\` as connected." ;;
   *playwright-mcp*) DRIVER_CHECK="your session must list the Playwright MCP tools \`browser_navigate\`, \`browser_snapshot\` and \`browser_take_screenshot\` (load them with ToolSearch if deferred)." ;;
+  *chrome*) DRIVER_CHECK="your session must list the Claude in Chrome tools (\`mcp__claude-in-chrome__navigate\`, \`find\`, \`read_page\`, \`computer\`, \`read_console_messages\`; load them with ToolSearch if deferred), \`list_connected_browsers\` must show a browser and \`tabs_context_mcp\` must give you a tab group. You drive the user's real Chrome: work only in tabs you create." ;;
+  *adb*) DRIVER_CHECK="\`adb -s $DEVICE shell dumpsys window | grep mCurrentFocus\` must print a window, and \`adb -s $DEVICE shell uiautomator dump --compressed /sdcard/ui.xml\` must succeed. If the dump prints \`Killed\`, run \`adb -s $DEVICE shell am force-stop dev.mobile.maestro\` once and retry (a leftover Maestro driver holds the device). This suite has no MCP driver: every look and every action is an \`adb -s $DEVICE\` command (Driver protocol § adb at the end)." ;;
+  *axe*) DRIVER_CHECK="\`axe list-simulators\` must list \`$DEVICE\` as booted and \`axe describe-ui --udid $DEVICE\` must print the current screen. This suite has no MCP driver: every look and every action is an \`axe … --udid $DEVICE\` command (Driver protocol § axe at the end)." ;;
+  *maestro-cli*) DRIVER_CHECK="\`maestro --version\` must work and the flow files the suite names must exist. This suite has no MCP driver: it runs existing flows with one \`maestro --device $DEVICE test\` per flow set (each invocation costs 9–22 s; never one per step)." ;;
   *http*) DRIVER_CHECK="\`curl --version\` must work. This suite has no MCP driver and no device: requests go through Bash \`curl\` following § 12 of the Evaluation standard." ;;
-  *maestro-cli*) DRIVER_CHECK="\`maestro --version\` must work and \`maestro --device $DEVICE hierarchy --compact\` must print the current screen. This suite has no MCP driver: read screens with \`maestro --device $DEVICE hierarchy\`, act through flows run with \`maestro --device $DEVICE test\`." ;;
   *) DRIVER_CHECK="the commands your suite's Tool field names (${TOOL:-none}) must work against \`$DEVICE\`." ;;
 esac
 if [ "$ROLE" = verify ]; then
@@ -160,7 +168,7 @@ cat <<EOF
 RUN_ID / SUITE / ATTEMPT_ID: $RUN_ID / $SUITE / $SUITE-$ROLE-a$ATTEMPT
 Role and requested model: $ROLE_LINE · model \`$MODEL\` ($WHY)
 Strategy · tool · timebox: ${STRATEGY:-see suite} · ${TOOL:-see suite} · ${TIMEBOX:-see suite}
-Your lane and device: lane \`$LANE\` · device id \`$DEVICE\`. Pass this id to every Maestro MCP tool (\`device_id\`) and every \`maestro --device\`, \`xcrun simctl\` or \`adb -s\` command. No other worker uses this device while you run. Never touch any other device; never boot, shut down, erase or reinstall devices.
+Your lane and device: lane \`$LANE\` · device id \`$DEVICE\`. Pass this id to every Maestro MCP tool (\`device_id\`) and every \`maestro --device\`, \`axe --udid\`, \`xcrun simctl\` or \`adb -s\` command. No other worker uses this device while you run. Never touch any other device; never boot, shut down, erase or reinstall devices.
 Driver check, before anything else: $DRIVER_CHECK If the check fails, stop at once with STATUS: BLOCKED and say what failed. Never work around a missing driver with scripts.
 Objective: $OBJECTIVE
 Method: $METHOD
@@ -195,6 +203,12 @@ required 'Device matrix' 2
 required 'Test data and accounts' 2
 required 'Worker environment' 2
 printf -- '---\n\n## %s\n\n%s\n' "$SUITE_HEADING" "$SUITE_TEXT"
+printf -- '\n---\n\n## Driver protocol (how you drive your device; sections for your tool: %s)\n\n' "${TOOL:-none}"
+section Common 2 "$PROTOCOL" | demote
+for t in $(printf '%s' "$TOOL" | tr '+' ' '); do
+  out=$(section "$t" 2 "$PROTOCOL")
+  [ -z "$out" ] || { printf '\n'; printf '%s\n' "$out" | demote; }
+done
 printf -- '\n---\n\n'
 # The evaluation standard is shown one heading level down, so its sections
 # never collide with the plan sections above.

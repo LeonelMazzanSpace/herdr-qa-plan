@@ -16,13 +16,13 @@ Workers ignore this section.
 
 Each worker owns exactly one suite on one lane.
 
-**Lanes and waves** (at most 6 live worker panes, verify workers included; at most one `maestro-mcp` lane per platform at a time; <lower cap and reason, if any>):
+**Lanes and waves** (at most 6 live worker panes, verify workers included; at most one `maestro-mcp` lane per platform and one `chrome` lane at a time; <lower cap and reason, if any>):
 
 | Wave | L1-ios | L2-android | L3-web | Depends on |
 |---|---|---|---|---|
 | 0 | preflight: boot, install, health check (orchestrator) | ← | ← | – |
 | 1 | S-001 smoke | S-004 smoke | S-007 smoke | wave 0 |
-| 2 | S-002 acceptance | S-005 regression (maestro-cli) | S-008 regression | own lane's smoke accepted |
+| 2 | S-002 acceptance | S-005 regression (`adb`, or `maestro-cli` on existing flows) | S-008 regression | own lane's smoke accepted |
 | 3 | S-003 a11y | S-006 performance (alone, last) | S-009 cross-system (ledger) | … |
 | close | verify workers for remaining FAILs · cross-platform parity (orchestrator) · consolidated report | | | all suites accepted |
 
@@ -44,7 +44,7 @@ bash <skill-dir>/scripts/boot-device.sh --platform ios --udid <udid> --app <path
 bash <skill-dir>/scripts/boot-device.sh --platform android --avd Pixel_8_API_34 --port 5554 --app <path/app.apk>
 ```
 
-Health check per lane: the orchestrator writes `<run-dir>/health-<lane>.yaml` (`appId` from the header, `launchApp`, `assertVisible` with the header's "First screen text") and runs `maestro --device <id> test` on it. Web: the base URL answers.
+Animations off on every Android lane (`devices-and-tools.md` § Android emulators). Health check per lane with its own driver (executing-qa-test-plans § Preflight 6): `adb` launch + `uiautomator dump` + grep of the "First screen text"; Maestro lanes a `health-<lane>.yaml` run once; `axe` launch + `describe-ui` + grep; web: the base URL answers.
 
 **Worker launch** (verified flags: Claude Code <version>, herdr <version>):
 
@@ -52,8 +52,10 @@ Health check per lane: the orchestrator writes `<run-dir>/health-<lane>.yaml` (`
 run_id=<app>-qa-<yyyymmdd>-<hhmm>               # resolved at execution; unique even for two runs the same day
 run_dir="$HOME/.cache/qa-runs/$run_id"; mkdir -p -m 700 "$run_dir"
 # per lane: MCP config with only that lane's driver (devices-and-tools.md § Worker MCP config)
-#   $run_dir/mcp-L1-ios.json, $run_dir/mcp-L2-android.json, $run_dir/mcp-L3-web.json
-#   a lane running a maestro-cli suite gets {"mcpServers": {}}
+#   maestro-mcp lane: $run_dir/mcp-L1-ios.json with the maestro server
+#   adb, axe, chrome, maestro-cli and http lanes: {"mcpServers": {}}
+#   chrome lane: add --chrome to the claude flags below (no server; the tools are built in)
+#   playwright-mcp lane (approved install only): $run_dir/mcp-L3-web.json with the playwright server
 split=$(herdr pane split --pane <worker-column-pane> --direction down --cwd <QA project root> --no-focus)
 pane=$(printf '%s' "$split" | jq -r '.result.pane.pane_id')
 herdr agent start s001 --kind claude --pane "$pane" --timeout 120000 -- \
@@ -63,7 +65,7 @@ herdr agent start s001 --kind claude --pane "$pane" --timeout 120000 -- \
 herdr agent prompt s001 "Read $run_dir/S-001.package.md and execute it exactly. Write your run report to $run_dir/S-001.md and end with STATUS and REPORT lines." --wait --timeout 3600000
 ```
 
-**Verify worker.** Agent `s0NN-v<N>`, on the same lane after the test worker has exited, with the same MCP config, `-n "S-0NN verify"`, prompt "Read $run_dir/S-0NN.verify-package.md and execute it exactly. Write your report to $run_dir/S-0NN.verify.md and end with STATUS and REPORT lines."
+**Verify worker.** Agent `s0NN-v<N>`, on the same lane after the test worker has exited, with the same MCP config and flags (`--chrome` on a Chrome lane), `-n "S-0NN verify"`, prompt "Read $run_dir/S-0NN.verify-package.md and execute it exactly. Write your report to $run_dir/S-0NN.verify.md and end with STATUS and REPORT lines."
 
 **Suites that run alone:** <performance-stability and Mac-offline network suites, by id>. They start only when no other test worker is live.
 

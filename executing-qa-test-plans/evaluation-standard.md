@@ -16,7 +16,7 @@
 - **No PASS without evidence:** every PASS has a screenshot or a snapshot.
 - **A control that does not respond is a functional blocker.** Report what you observed; never assume why.
 - **Use the control the way it is meant to be used before calling it broken.** Example: a control that enables only after an autocomplete choice: type 2+ characters, wait for suggestions, pick one. Enables → expected (`requires autocomplete selection`). Still disabled → defect. Nothing to select → BLOCKED.
-- **Diagnose before reporting:** inspect the screen (Maestro `inspect_screen` / `maestro hierarchy`, Playwright `browser_snapshot`) to rule out a wrong selector or tap target.
+- **Diagnose before reporting:** inspect the screen with your lane's driver (`adb` dump, Maestro `inspect_screen`, AXe `describe-ui`, Chrome `find` / `read_page`, Playwright `browser_snapshot`) to rule out a wrong selector or tap target.
 - **Known non-bug quirks** (plan Global Constraints / `context/navigation-map.md` § Known Non-Bug Quirks) are a default, not a gag. If your evidence contradicts a quirk (clean logs, reproduces on a fresh launch), report it and name the quirk you departed from. If no quirks are recorded (the section is missing or still the empty template), say so under Coverage gaps.
 - **Waiting longer is not a diagnosis.** A screen that stays blank under automation is *provisional* until a human sees the same on the device or browser. Say so in the finding.
 - **False positives are corrected in writing** under `## Corrected false positives`, never deleted.
@@ -100,7 +100,7 @@ AUTH-11/12 run only for the form factors in the suite's scope; the other is `N/A
 
 ## 6. Accessibility audit
 
-| Check | Web (Playwright snapshot) | Mobile (`inspect_screen` / hierarchy) |
+| Check | Web (Chrome `read_page` / Playwright snapshot) | Mobile (hierarchy: `adb` dump / `inspect_screen` / `describe-ui`) |
 |---|---|---|
 | Interactive elements labelled | inputs, buttons, selects have an accessible name | every tappable element has an accessibility label (icon-only buttons included) |
 | Images | `alt`, or `role="presentation"` for decorative ones | meaningful images labelled; decorative ones hidden from accessibility |
@@ -115,7 +115,7 @@ AUTH-11/12 run only for the form factors in the suite's scope; the other is `N/A
 
 ## 7. Console & logs health
 
-- **Web:** read the console messages and the network requests at the end of each scenario (Playwright `browser_console_messages`, `browser_network_requests`). Count JS errors, failed requests (4xx/5xx, CORS, timeouts) and warnings.
+- **Web:** read the console messages and the network requests at the end of each scenario (Chrome `read_console_messages` / `read_network_requests`, Playwright `browser_console_messages` / `browser_network_requests`). Count JS errors, failed requests (4xx/5xx, CORS, timeouts) and warnings.
 - **iOS simulator:** `xcrun simctl spawn <udid> log show --last 10m --style compact --predicate 'process == "<App>" AND (messageType == error OR messageType == fault)'`; crash reports in `~/Library/Logs/DiagnosticReports/` newer than the run start.
 - **Android emulator:** `adb -s <serial> logcat -b crash -d`, `adb -s <serial> logcat -d '*:E' | grep <package>`, ANRs (`adb -s <serial> logcat -d | grep "ANR in"`).
 - **Classify each:** app error, or third-party (analytics, maps, SDKs). Third-party noise does not lower the app's Console score unless it breaks something the user sees.
@@ -127,7 +127,7 @@ Note, per screen: typography and hierarchy, spacing and alignment, consistency o
 
 ## 9. Text quality (strategy `text-quality`, and any copy you notice)
 
-Review the visible UI text against the project language. Collect it from `inspect_screen` / hierarchy (mobile) or `browser_snapshot` (web): headings, labels, buttons, links, errors, placeholders, tooltips, empty states. Skip data (numbers, dates, user content, IDs).
+Review the visible UI text against the project language. Collect it from the hierarchy (`adb` dump, `inspect_screen`, `describe-ui`) on mobile or `read_page` / `browser_snapshot` on web: headings, labels, buttons, links, errors, placeholders, tooltips, empty states. Skip data (numbers, dates, user content, IDs).
 
 - **Typo:** clearly misspelled word. **Grammar:** agreement, conjugation, broken structure. **Mixed language:** other-language text on a screen that should be in the project language, a raw i18n key (`home.title`), placeholder copy (`Lorem ipsum`, `TODO`, `test test`). **Punctuation/capitalisation:** missing accent that changes or breaks a word, the same label capitalised differently, missing or doubled punctuation.
 - **High-confidence only.** Skip brand names, proper nouns and technical terms you are not sure about. No style preferences.

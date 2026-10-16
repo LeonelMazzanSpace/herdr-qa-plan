@@ -1,6 +1,6 @@
 ---
 name: writing-qa-test-plans
-description: Writes a QA test plan for a mobile app (iOS simulator, Android emulator) and/or web app, to be executed by parallel Claude Code workers in Herdr panes, one device lane each. Manual only — run /writing-qa-test-plans.
+description: Writes a QA test plan for a mobile app (iOS simulator, Android emulator) and/or web app (Chrome), to be executed by parallel Claude Code workers in Herdr panes, one device lane each, with the driver of each lane chosen and every install recorded as a decision. Manual only — run /writing-qa-test-plans.
 disable-model-invocation: true
 ---
 
@@ -76,12 +76,14 @@ Keep blocking questions to one message, each with a proposed default. While you 
 
 6. **No sources at all** (no vault, no ClickUp, no context files). Requirements come from the user's description. Ask for the 3–5 critical flows. If they cannot list them, plan a first `exploratory` discovery suite per platform whose report becomes the input for a later revision of the plan.
 7. **Tooling, verified, not remembered.** Run each check and record the result:
-   - `maestro --version`, `java -version` (17+);
-   - `claude mcp list` (Maestro MCP, Playwright MCP);
-   - `xcrun simctl list devices available`, `emulator -list-avds`, `adb devices`;
+   - Android in scope: `adb version`, `emulator -list-avds`. That is all an `adb` lane needs;
+   - iOS in scope: `xcrun simctl list devices available`, then which iOS driver exists: `maestro --version` (≥ 2.11) with `java -version` (17+), or `axe --help`;
+   - web in scope: Chrome installed (`ls /Applications | grep Chrome`) and `claude --help` lists `--chrome`. Ask the user whether the Claude in Chrome extension is installed and signed in (you cannot check it from here). Playwright is **not** checked unless the user asks for it;
    - `herdr --version`, `test "$HERDR_ENV" = 1`, `claude --help` for the launch flags.
 
-   **Maestro missing:** say so, give the install command from `devices-and-tools.md`, and record "install Maestro" as a `to confirm` decision. Never install it yourself without the user's yes. Mobile suites are still planned; they cannot start until it is installed. Web lanes do not depend on Maestro and can start first.
+   **Driver per lane and installs.** Pick each lane's `Tool:` with `devices-and-tools.md` § Driver choice per lane: Android `adb` (no install), iOS `maestro-mcp` if Maestro is installed, else `axe` or Maestro as a `to confirm` install decision, web `chrome`. Every install (Maestro, AXe, Playwright MCP, Java) is a `to confirm` decision with its cost and what it unlocks, never a default and never done by you. Suites on a lane whose driver is not installed are still planned; they cannot start until the user approves. Lanes whose driver exists start first.
+
+   **Playwright MCP is opt-in.** Offer it only when the plan needs what Chrome cannot do: parallel web lanes, the 375×667 mobile-web pass, headless, or an isolated profile without the user's logins. The option says it downloads and runs a third-party server with `npx`. If the user says web is Chrome only, the mobile-web viewport scope becomes `N/A (driver)` in the plan.
 8. **Decisions.** A decision **changes scope** if it changes what is tested, on which devices, against which environment, with which accounts, or whether anything is written outside the run (ClickUp tickets, production data). Ask about those. Routine choices (lane naming, suite order within a lane, timeboxes) are yours: `adopted by plan author`.
 
 ## Single-Platform Scope
@@ -90,21 +92,23 @@ The platforms in scope decide the lanes, the tools checked and the strategies th
 
 | Scope | Lanes | Tooling checked | Strategies marked `not applicable` (reason "platform out of scope") |
 |---|---|---|---|
-| Web only | web lanes (and an API lane if asked) | Playwright MCP, Node. **Not** Maestro, Java, Xcode or Android | `interruptions-lifecycle`, `install-upgrade`, mobile-only rows of `ui-visual`, `network-conditions` on devices, `cross-platform-parity` unless desktop vs mobile web is compared |
-| Mobile only (iOS, Android or both) | one lane per device (and an API lane if asked) | Maestro, Java, the Xcode and/or Android tooling of the platforms in scope. **Not** Playwright | `responsive-web`, web rows of `ui-visual`, `cross-system-e2e` unless a web admin exists and is in scope |
+| Web only | web lanes (and an API lane if asked) | Chrome + `--chrome`; Playwright MCP only by decision. **Not** Maestro, Java, Xcode or Android | `interruptions-lifecycle`, `install-upgrade`, mobile-only rows of `ui-visual`, `network-conditions` on devices, `cross-platform-parity` unless desktop vs mobile web is compared |
+| Mobile only (iOS, Android or both) | one lane per device (and an API lane if asked) | Android: `adb`. iOS: Maestro + Java, or AXe. **Not** a browser | `responsive-web`, web rows of `ui-visual`, `cross-system-e2e` unless a web admin exists and is in scope |
 | iOS only or Android only | lanes of that platform only | only that platform's tooling | the above, plus parity between iOS and Android |
 
-Extra parallelism in a single-platform scope comes from more devices of that platform (as a decision). The Maestro MCP limit still applies: the second iOS or Android lane runs `maestro-cli` suites. For web, more browser lanes are cheap: each worker gets its own isolated Playwright browser.
+Extra parallelism in a single-platform scope comes from more devices of that platform (as a decision). Android: another `adb` lane, no driver limit. iOS: a second lane needs AXe (approved install) or runs only existing flow files with `maestro-cli`. Web: a second lane needs an approved Playwright MCP; with Chrome alone, web suites run one after the other on one lane.
 
 ## Lanes: the Rules That Make Parallel Workers Safe
 
 - **One lane = one device = one live worker.** Suites on the same lane run in sequence. Two suites can run in parallel only on different lanes.
 - **Waves are only the intended order.** Each lane moves to its next suite as soon as its previous one is accepted, without waiting for other lanes. Every limit below applies "at any moment", not "per wave".
 - **Number of lanes = degree of parallelism.** More parallelism means more devices: another simulator (`xcrun simctl create` / `clone`) or a second AVD. Extra devices cost RAM and boot time (`devices-and-tools.md` § Resource budget); propose them as a `to confirm` decision, never as the default.
-- **Maestro MCP port limit.** At any moment, at most one live `maestro-mcp` worker per platform. Any other lane of the same platform runs `maestro-cli` suites.
+- **Driver limits.** At any moment, at most one live `maestro-mcp` worker per platform (fixed driver ports) and at most one live `chrome` worker (one tab group in the user's Chrome). Other lanes of the same platform use `adb` (Android), `axe` or `maestro-cli` with existing flows (iOS), or an approved `playwright-mcp` (web).
 - **Live pane cap: 6** at any moment. It counts test workers and verify workers that are running; a verify worker that is only queued does not count. Plan at most 5 test lanes, so a verify worker can always start.
 - **Discovery, then smoke, first on every lane.** For a whole-app audit or a stale navigation map, `platform-discovery` runs first on each UI platform. Then `smoke`. Later suites on that lane depend on smoke: `**Depends on:** S-001 accepted`. A smoke FAIL turns them into BLOCKED, not into extra FAILs.
 - **API lanes** (`Lx-api`, platform `api`, tool `http`) hold no device and no MCP driver. They still count toward the pane cap.
+- **Scenario steps are written for batching.** A worker drives one batched call per scenario step (`driver-protocol.md` in executing-qa-test-plans): write Steps as the actions of one screen and Expected as a text the tree can prove ("'Reserva confirmada' visible"), not as a look ("the screen looks right"). Visual judgements belong to `ui-visual` and `text-quality` suites, where screenshots are the point.
+- **Driver gaps are planned, not discovered.** `adb` cannot type accents or emoji (those scenarios go on a `maestro-mcp` lane or are `N/A (driver)`); `chrome` cannot emulate a mobile viewport; `maestro-cli` only runs flows that exist.
 - **Data isolation.** Each lane gets its own account and an exclusive data range (`## Test data and accounts`). If only one account exists, record the risk as a decision: parallel logins may kick each other out. Then either run those lanes in sequence or accept the risk.
 - **Disturbing suites go last or alone:** `performance-stability`, offline tests that touch the Mac's network, anything that reinstalls or clears the app.
 - **Cross-system checks** (mobile creates, web verifies) go through a ledger file in the run dir. The verifying suite depends on the creating one.
@@ -131,7 +135,7 @@ Every scenario has an ID (`S-001-03`), steps, an expected result and a technique
 
 ## Model Per Suite
 
-From `strategy-catalog.md` § Model per suite: `opus` for exploratory, accessibility, security and anything that has to judge; `sonnet` for smoke, acceptance and regression; `haiku` only for re-running existing flows with no judgment. Never `haiku` for MCP-driven suites. Give each suite a one-line rationale in the Orchestration model table.
+From `strategy-catalog.md` § Model per suite: `opus` for exploratory, accessibility, security and anything that has to judge; `sonnet` for smoke, acceptance and regression; `haiku` only for re-running existing flows with no judgment. Never `haiku` for a suite that reads screens (`adb`, `maestro-mcp`, `axe`, `chrome`, `playwright-mcp`). Give each suite a one-line rationale in the Orchestration model table.
 
 ## Summary File
 
@@ -141,11 +145,11 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 
 1. Every strategy in `strategy-catalog.md` appears in `## Strategy coverage` with a decision and a reason.
 2. Every suite has the full header line. Its Lane exists in the Device matrix; its Depends on points to existing suites.
-3. No two suites on the same lane overlap in time. Never two `maestro-mcp` suites of the same platform scheduled at the same moment. At most 5 test lanes.
+3. No two suites on the same lane overlap in time. Never two `maestro-mcp` suites of the same platform, nor two `chrome` suites, scheduled at the same moment. At most 5 test lanes.
 4. Every lane has an account of the right role, whose variable names exist in `.env.example`, and a data range. A shared account or a missing role is a recorded decision.
 5. Every scenario has an ID, steps, an expected result and a technique.
 6. Sources are honest: `Vault:` and `ClickUp:` say what was read, or `none` with the reason. Nothing was written to ClickUp or the vault.
-7. Decision statuses are honest. Every scope-changing decision the user has not answered (extra devices, ClickUp destination, Maestro install, permission mode, production access) says `to confirm`.
+7. Decision statuses are honest. Every scope-changing decision the user has not answered (extra devices, ClickUp destination, any install: Maestro, AXe, Playwright MCP, Java; permission mode, production access) says `to confirm`. Every lane's `Tool:` is one the Device matrix can run without an unapproved install, or the lane's suites say they wait for that decision.
 8. Values not yet known (UDIDs of devices still to be created) say `resolved at execution`. Nothing else is a placeholder.
 9. Parity with the evaluation standard:
    - every suite that touches login, register or password reset will get AUTH-01…12;
@@ -165,12 +169,16 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 | Mistake | Fix |
 |---|---|
 | Two workers "on iOS" sharing the one booted simulator | One lane per device. More parallelism needs more devices, as a decision |
-| Two MCP-driven iOS lanes at once | Maestro MCP uses fixed ports per platform. The second lane runs `maestro-cli` |
+| Two MCP-driven iOS lanes at once | Maestro MCP uses fixed ports per platform. The second lane runs `axe` (approved install) or `maestro-cli` on existing flows |
+| Android lanes planned on Maestro by habit | `adb` is the default Android driver: 41 ms per tap, no Java, no port limit |
+| Web lane planned on Playwright by habit | `chrome` (Claude in Chrome) is the default; Playwright only as an approved decision for what Chrome cannot do |
+| Two web lanes on Chrome | One tab group for every session. A second web lane is an approved Playwright lane |
+| Expected results written as "looks correct" | Write the text the tree must show; workers verify by text and screenshot only for evidence |
 | Suites listing only "test the booking flow" | Scenarios with ID, steps, expected result and technique |
 | Silently dropping strategies because it is urgent | Coverage table: `deferred` with "time" as the reason |
 | Reading the vault from disk when the MCP fails | Ask; otherwise `Vault: none (MCP down)` |
 | Creating ClickUp tickets or lists while planning | Destination list is a `to confirm` decision; tickets come after verification at execution |
 | Inventing acceptance criteria when ClickUp is down | Use the vault or the user, or mark acceptance suites `deferred` |
-| Installing Maestro to "save time" | Ask first; record the decision |
+| Installing Maestro, AXe or Playwright to "save time" | Ask first; record the decision. The planner never installs |
 | Performance run in parallel with other lanes | Last, alone, labelled emulator-indicative |
 | One shared account across parallel lanes, unmentioned | A recorded decision, or lanes run in sequence |

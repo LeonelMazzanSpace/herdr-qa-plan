@@ -1,6 +1,6 @@
 ---
 name: executing-qa-test-plans
-description: Executes an approved QA test plan with parallel Claude Code workers in Herdr panes, each driving its own iOS simulator, Android emulator (Maestro CLI + MCP), browser (Playwright MCP) or API; also resumes, reports status of, or closes such a run. Manual only — run /executing-qa-test-plans <plan>.
+description: Executes an approved QA test plan with parallel Claude Code workers in Herdr panes, each driving its own Android emulator (adb), iOS simulator (Maestro MCP or AXe), Chrome (Claude in Chrome, native; Playwright MCP only by decision) or API; also resumes, reports status of, or closes such a run. Manual only — run /executing-qa-test-plans <plan>.
 disable-model-invocation: true
 ---
 
@@ -19,7 +19,9 @@ One orchestrator session runs a plan written with `/writing-qa-test-plans`. It b
 
 **REQUIRED BACKGROUND:** the `herdr` and `herdr-agent-orchestration` skills (CLI, agent states), superpowers:verification-before-completion. **How results are judged** lives in `evaluation-standard.md`, which `make-package.sh` appends to every package. It carries what qa-team-spacedev evaluated: evidence rules, severity, the six-dimension quality score, error guessing, AUTH-01…12, accessibility, console/logs, visual, text, tenants and roles, API rules, and the report template. You hold workers to it when accepting.
 
-`<skill-dir>` is this skill's base directory (shown when the skill loads). Call scripts by absolute path: `bash <skill-dir>/scripts/…`. Commands, Maestro MCP tool names and flags are in `devices-and-tools.md`.
+`<skill-dir>` is this skill's base directory (shown when the skill loads). Call scripts by absolute path: `bash <skill-dir>/scripts/…`. Commands, driver choice per platform, tool names and flags are in `devices-and-tools.md`. **How a worker drives its device fast** (one batched call per step, verify by text, screenshots to files, measured latencies) is `driver-protocol.md`, which `make-package.sh` appends to every package for the suite's tool.
+
+**Installs are decisions.** Maestro, AXe, Playwright MCP, Java: nothing is installed, downloaded with `npx`, or added with `brew` unless the plan records it as `approved` or the user says yes in the preflight. The defaults need no install beyond the platform SDKs: `adb` for Android, Claude in Chrome (`--chrome`) for web, Maestro for iOS when it is already there.
 
 **Herdr agent names:** test worker `s0NN`; verify worker `s0NN-v<N>`; full restart `s0NN-a<N>`.
 
@@ -90,13 +92,17 @@ Example: the same preflight, asked this way.
 2. Read `QA-SCRATCHPAD.md` (create it from `scratchpad-template.md` if missing), the plan and its summary. Every `to confirm` decision that a lane needs must be answered before that lane is dispatched: permission mode, extra devices, Maestro install, production access. Ask them all in one message, shaped as in "Asking the User".
 3. **Tooling.** Check each and record the result in the scratchpad:
    - `herdr --version`; `claude --help` for `--model`, `--permission-mode`, `--strict-mcp-config`, `--mcp-config`, `--add-dir`, `-n`; `jq --version`;
-   - mobile lanes only: `maestro --version`, `java -version` (17+); `xcrun simctl help` if iOS is in scope; `emulator -list-avds` and `adb version` if Android is;
-   - web lanes only: `npx -y @playwright/mcp@latest --help` for `--isolated`, `--viewport-size` and `--output-dir`;
-   - API lanes only: `curl --version`.
+   - per lane, only what its `Tool:` needs (`devices-and-tools.md` § Driver choice per lane):
+     - `adb`: `adb version`, `emulator -list-avds`. No Maestro, no Java;
+     - `maestro-mcp` / `maestro-cli`: `maestro --version` (≥ 2.11), `java -version` (17+), plus `xcrun simctl help` or `adb version` for its platform;
+     - `axe`: `axe --help`, `axe list-simulators`;
+     - `chrome`: Chrome is running (`pgrep -x "Google Chrome"`), the Claude in Chrome extension is installed and signed in (the user confirms; `/chrome` in your own session shows the connection), and `claude --help` lists `--chrome`;
+     - `playwright-mcp` (only when its install decision is `approved`): `npx -y @playwright/mcp@latest --help` for `--isolated`, `--viewport-size`, `--device` and `--output-dir`;
+     - `http`: `curl --version`.
 
-   Check only the tooling for the platforms the plan covers. A web-only run never asks for Maestro; a mobile-only run never starts Playwright.
+   Check only the tooling the plan's lanes use. A web-only run never asks for Maestro; a mobile-only run never starts a browser; an Android-only run never needs Java.
 
-   If Maestro is missing, the mobile lanes are BLOCKED: give the install command and wait for the user's yes before installing anything. Web lanes continue meanwhile.
+   A missing driver blocks only its lanes. Say what is missing and what it means, offer the install as a question (`devices-and-tools.md` has the commands), and wait for the yes before installing anything. Other lanes continue meanwhile. Without Maestro, Android lanes still run on `adb`; iOS lanes wait for Maestro or AXe.
 4. **Run dir:** `mkdir -p -m 700 ~/.cache/qa-runs/<run-id>`. Packages, run reports, findings files, MCP configs, excerpts and `ledger.md` live there. Evidence goes to the project's `evidence/`.
 5. **Optional sources, fresh:**
    - **Vault:** only for suites whose header names notes. Confirm the vault MCP is connected, reread the notes and quote the needed lines into `<run-dir>/<suite>.vault.md`.
@@ -110,10 +116,16 @@ Example: the same preflight, asked this way.
    - If an MCP is down: tell the user, keep only the suites that need it waiting, and run the rest. Never read the vault from disk, never invent ticket content, never reuse ticket text from an old run.
 6. **Devices, lane by lane:** `bash <skill-dir>/scripts/boot-device.sh …` with the plan's Device matrix values. Record the printed id, the `booted-by-this-run` line, and the installed build.
    - Create extra simulators or AVDs only when the plan's decision for them is `approved`.
-   - **Health check per lane.** Write `<run-dir>/health-<lane>.yaml` yourself: the lane's `appId` (bundle id / package from the plan header), `---`, `- launchApp`, and `- assertVisible: "<a text on the first screen>"` taken from the plan or `context/navigation-map.md`; if neither has one, use `- takeScreenshot: <run-dir>/health-<lane>` and look at it. Run `maestro --device <id> test <run-dir>/health-<lane>.yaml`. Without Maestro: `xcrun simctl launch <udid> <bundle id>` / `adb -s <serial> shell monkey -p <package> 1`, then a screenshot you open. For web, the base URL answers.
+   - **Animations off on every Android lane** (`devices-and-tools.md` § Android emulators): it halves Maestro's settle time and cuts `uiautomator dump` from 2 s to 0.5 s. Record it; restore at closing if the device stays up.
+   - **Health check per lane**, with the lane's own driver and the plan's "First screen text":
+     - `adb`: first `adb -s <serial> shell am force-stop dev.mobile.maestro` (a Maestro driver left on the device kills every `uiautomator dump` with exit 137), then `adb -s <serial> shell monkey -p <package> 1`, 3 s, `uiautomator dump` and `grep` the text;
+     - `maestro-mcp` / `maestro-cli`: write `<run-dir>/health-<lane>.yaml` (`appId`, `---`, `- launchApp`, `- assertVisible: "<text>"`) and run `maestro --device <id> test` on it once;
+     - `axe`: `xcrun simctl launch <udid> <bundle id>`, then `axe describe-ui --udid <udid> | grep` the text;
+     - `chrome` / `playwright-mcp`: `curl -sS -o /dev/null -w '%{http_code}' <base URL>` answers 2xx/3xx;
+     - no first-screen text known: a screenshot you open (`adb exec-out screencap`, `xcrun simctl io screenshot`).
    - A lane that fails its health check is `blocked`. Fix what you own (reboot, reinstall), otherwise tell the user.
-7. **Worker MCP configs:** `<run-dir>/mcp-<lane>.json` per lane, from `devices-and-tools.md` § Worker MCP config. Workers start with `--strict-mcp-config`, so they get only their own driver and cannot reach ClickUp or the vault. A lane running a `maestro-cli` suite, and every API lane, gets `{"mcpServers": {}}`: they work through the CLI or `curl` and hold no MCP driver port.
-8. **Maestro MCP port limit:** at most one live `maestro-mcp` worker per platform. If the plan has two MCP lanes on the same platform in a wave, run them one after the other. Exception: you test two sessions for real on two devices and both work; record that as a D-number.
+7. **Worker MCP configs:** `<run-dir>/mcp-<lane>.json` per lane, from `devices-and-tools.md` § Worker MCP config. Workers start with `--strict-mcp-config`, so they get only their own driver and cannot reach ClickUp or the vault. Only `maestro-mcp` and `playwright-mcp` lanes have a server in the file; `adb`, `axe`, `chrome`, `maestro-cli` and `http` lanes get `{"mcpServers": {}}`. A `chrome` lane also gets the `--chrome` flag at launch.
+8. **Driver limits:** at most one live `maestro-mcp` worker per platform (fixed driver ports), and at most one live `chrome` worker in total (every session shares one tab group in the user's Chrome). If the plan has two such lanes in a wave, run them one after the other. `adb` and `axe` lanes have no driver limit, only the RAM budget. Exception for Maestro: you test two sessions for real on two devices and both work; record that as a D-number.
 9. **Permission mode.** Workers need a mode that runs Maestro, simctl and adb without asking each time. `--permission-mode auto` may be refused: either the `herdr agent start` call is denied, or the worker's pane shows the refusal (`herdr agent read <name> --source visible` right after start). If so, ask the user once which write-capable mode they approve, and record the answer. Never switch to bypass flags, and never answer a worker's permission prompt yourself.
 10. **Keep the Mac awake.** Ask; with an OK, run `caffeinate -i` in a pane you create.
 
@@ -122,7 +134,7 @@ Example: the same preflight, asked this way.
 Dispatch while there are fewer than **6 live worker panes** (test and verify workers both count, `caffeinate` does not), or fewer than the plan's lower cap.
 - Each lane runs its suites in plan order. A suite starts when the previous suite on its lane is `accepted` and its `Depends on` suites are accepted. Lanes advance independently; "waves" in the plan are only the intended order.
 - **Suites that run alone:** `performance-stability`, and `network-conditions` suites that take the Mac offline, start only when no other test worker is live. Hold the other lanes' next suites until they finish.
-- At any moment, at most one live `maestro-mcp` worker per platform (preflight step 8).
+- At any moment, at most one live `maestro-mcp` worker per platform and one live `chrome` worker (preflight step 8).
 - When a pane frees up, use it in this order: pending verify workers first, then suites in plan order.
 
 1. **Package:** `bash <skill-dir>/scripts/make-package.sh --plan … --suite S-0NN --model … --why … --run-id … --run-dir … --device <lane device id> --evidence evidence/<app-slug>/S-0NN-<slug>/<run-id>[-a<N>] --root <QA project root> [--vault-excerpts …] [--clickup-excerpts …] [--notes …]`. Patterns learned from earlier suites go in `--notes` (see Learning Across Suites).
@@ -134,6 +146,7 @@ Dispatch while there are fewer than **6 live worker panes** (test and verify wor
    ```bash
    herdr agent start s0NN --kind claude --pane <pane> --timeout 120000 -- --model <plan model> --permission-mode <approved mode> --strict-mcp-config --mcp-config <run-dir>/mcp-<lane>.json --add-dir <run-dir> -n "S-0NN <strategy> <lane>"
    ```
+   A `chrome` lane adds `--chrome` after `--strict-mcp-config`. Its first-ever launch on this Mac may show a one-time Chrome dialog that needs Enter: read the pane and tell the user.
 4. **Verify the effective model** on the status line (`herdr agent read s0NN --source visible`) and record it.
 5. **Prompt once,** as a Bash call with `run_in_background: true`, so you stay free; you are notified when it returns:
    ```bash
@@ -198,6 +211,9 @@ Accept a suite only when every check below passes, in order:
 | BLOCKED on a precondition (account variable unset, seed data, build) | If you own it, fix it and re-prompt the same session. Otherwise record it and tell the user. The blocked scenarios stay BLOCKED in the report, never FAIL |
 | The device died, froze or the emulator closed | The device is yours: reboot it with `boot-device.sh` (same id/port), then re-prompt the same session to continue from the first scenario without an outcome |
 | Maestro MCP errors about a port or driver connection while another MCP lane of the same platform is live | Port limit. Pause one lane: let it finish, then resume the other. Record it |
+| `chrome` worker reports no connected browser, a tab it did not create, or a site-permission stall | Chrome is the user's: ask them to open Chrome, reconnect the extension (`/chrome` → Reconnect), or allow the QA domain in the extension's site settings. Never drive their other tabs; never answer a permission prompt yourself |
+| The suite is slow: one tool call per tap, a screenshot after every action, `maestro test` per step | Send one message naming the Driver protocol rules it is breaking (batch per step, verify by text, screenshots to files). Do not accept a suite whose evidence dir is full of unreferenced screenshots |
+| `adb` worker reports a unicode / emoji input step it cannot type | Known gap of the driver. The step is `N/A (driver)` in the report; if the scenario matters, schedule it on a `maestro-mcp` lane |
 | The app crashes during a scenario | That is a finding, not a worker failure. The worker records it with evidence and relaunches |
 | `--wait` timed out while still working | `herdr agent read` the pane. If it is progressing, wait again in the background. If nothing changed for 20 minutes, send `esc` and ask for a status report |
 | Timebox exceeded and still working | Ask it to stop and write the report with the remaining scenarios as `not run (timebox)` |
@@ -298,9 +314,14 @@ These thoughts mean stop:
 | Thought | Reality |
 |---|---|
 | "Two workers can share the simulator, they test different screens" | They relaunch the app, steal focus and corrupt each other's evidence. One device, one worker |
+| "Maestro is missing, so Android is blocked too" | Android runs on `adb` with no Maestro and no Java. Only iOS waits |
+| "AXe is just a brew install, I'll add it to unblock iOS" | Ask first and record the decision. Installs are never yours |
+| "Playwright MCP is only an `npx`, not an install" | It downloads and runs a third-party server. Same rule: approved decision, or the web lane runs on Chrome |
+| "Two web workers in Chrome, one per site" | One tab group for every session: they act in each other's tabs. One Chrome lane; parallel web needs approved Playwright lanes |
+| "The worker screenshots after every tap, that's thorough" | That is what makes a suite take an hour. Evidence is a file per checkpoint; verification is text. Send the protocol rule |
 | "The worker says FAIL, file it" | Open the screenshot, then verify it independently. Only confirmed bugs leave the run |
 | "The user said no questions, so file every bug now" | The instruction approves filing, not unverified bugs |
-| "Maestro is missing, I'll install it quickly" | Ask first. Web lanes can run meanwhile |
+| "Maestro is missing, I'll install it quickly" | Ask first. Web and Android lanes can run meanwhile |
 | "MCP tool not listed, have the worker write a script" | BLOCKED. Fix the driver config |
 | "I'll drive this lane myself, it's faster" | Then no worker owns that lane. You orchestrate |
 | "Bare `adb install` is fine" | With two emulators it fails or hits the wrong one. Always `-s <serial>` |
