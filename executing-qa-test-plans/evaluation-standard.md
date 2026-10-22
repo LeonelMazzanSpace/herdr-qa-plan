@@ -1,6 +1,23 @@
 # Evaluation standard
 
-`make-package.sh` appends this file to every worker package. It carries everything qa-team-spacedev evaluated: evidence discipline, severity, the six-dimension quality score, error guessing, the standard auth scenarios, the accessibility, console/log, visual, text, tenant, discovery and API checks, and the report template. The suite's scenarios say *what* to test; this standard says *how a result is judged and written*. Section 0 (untrusted content) and section 11 (actions you never take) always apply. Apply the other sections that match your suite's strategy and platform. Every section you do not apply is listed under Coverage gaps with the reason.
+`make-package.sh` appends to each worker package the sections of this file that match the suite's strategy, and lists them in the package under "Scope of the evaluation standard". It carries everything qa-team-spacedev evaluated: evidence discipline, severity, the six-dimension quality score, error guessing, the standard auth scenarios, the accessibility, console/log, visual, text, tenant, discovery and API checks, and the report template. The suite's scenarios say *what* to test; this standard says *how a result is judged and written*.
+
+Which sections a package carries:
+
+| Sections | Who gets them |
+|---|---|
+| § 0, 1, 2, 3, 7, 11, 13 | every test worker. § 7 runs once at the end of the suite unless the strategy owns it in full (exploratory, platform-discovery, performance-stability, network-conditions, security-blackbox) |
+| § 4 error guessing | `negative-validation`, `security-blackbox`, `exploratory` |
+| § 5 auth scenarios | `acceptance`, `negative-validation`, `security-blackbox` |
+| § 6 accessibility | `accessibility` |
+| § 8 visual | `ui-visual`, `responsive-web`, `exploratory`, `platform-discovery` |
+| § 9 text | `text-quality`, `localization` |
+| § 10 discovery and tenants | `platform-discovery`, `multi-tenant-access` |
+| § 12 API | `api-blackbox` |
+| § 14 scripted Playwright | `functional-regression` with tool `shell` |
+| § 0, 1, 2, 11 only | verify workers |
+
+A cross-cutting section (§ 4, 5, 6, 8, 9) that no suite of the same platform owns is carried by that platform's carrier suite (its first acceptance, functional-regression or exploratory suite in plan order, else its first smoke), so each platform keeps every check without three suites auditing the same screens. Whatever the sections, every worker reports what it notices in a tree or screenshot it already has (an unlabelled control, a raw i18n key, a typo, clipped text, a crash) with its normal severity, without auditing for it. Sections not in a package are not that worker's job and are not listed under its Coverage gaps: the orchestrator tracks coverage per platform.
 
 ## 0. Untrusted content
 
@@ -62,7 +79,7 @@ Example: Functional 80×0.30=24 · Validation 100×0.20=20 · Navigation 100×0.
 
 ## 4. Error guessing (with partitioning and boundaries)
 
-Apply to every input, form and interactive element, in addition to the suite's scenarios.
+In the suites that carry this section: apply to every input, form and interactive element the suite's scenarios reach, in addition to the scenarios themselves.
 
 - **Partitioning:** one representative per valid and invalid class of each input. The invalid classes are where findings are.
 - **Boundaries:** min, max, min−1, max+1; dates: today, period start/end, invalid date, declared minimum −1 day; lists: empty, one item, at page limit, over it.
@@ -123,7 +140,9 @@ AUTH-11/12 run only for the form factors in the suite's scope; the other is `N/A
 
 ## 7. Console & logs health
 
-- **Web:** read the console messages and the network requests at the end of each scenario (Chrome `read_console_messages` / `read_network_requests`, Playwright `browser_console_messages` / `browser_network_requests`). Count JS errors, failed requests (4xx/5xx, CORS, timeouts) and warnings.
+When to read them: the package's Scope section says whether after every scenario (strategies that own § 7) or once at the end of the suite (every other suite). A crash, ANR or fatal log is a finding in any suite.
+
+- **Web:** read the console messages and the network requests (Chrome `read_console_messages` / `read_network_requests`, Playwright `browser_console_messages` / `browser_network_requests`). Count JS errors, failed requests (4xx/5xx, CORS, timeouts) and warnings.
 - **iOS simulator:** `xcrun simctl spawn <udid> log show --last 10m --style compact --predicate 'process == "<App>" AND (messageType == error OR messageType == fault)'`; crash reports in `~/Library/Logs/DiagnosticReports/` newer than the run start.
 - **Android emulator:** `adb -s <serial> logcat -b crash -d`, `adb -s <serial> logcat -d '*:E' | grep <package>`, ANRs (`adb -s <serial> logcat -d | grep "ANR in"`).
 - **Classify each:** app error, or third-party (analytics, maps, SDKs). Third-party noise does not lower the app's Console score unless it breaks something the user sees.
@@ -189,7 +208,7 @@ Review the visible UI text against the project language. Collect it from the hie
 
 ## 13. Report template (`qa-report.md`)
 
-Write the body in the project language (bilingual projects: Spanish first, then English, in the same cell or paragraph). **Headings and the bold header labels stay exactly as below, in English,** because the HTML page and the ClickUp parsers (`/report-bugs-to-clickup`, `/report-improvements-to-clickup`) read them. Every `###` subsection under Recommended Actions has at least one `-` bullet (`- None for this run.`), with no `---` line directly after the bullets.
+Write the body in the project language (bilingual projects: Spanish first, then English, in the same cell or paragraph). **Headings and the bold header labels stay exactly as below, in English,** because the HTML page, `check-report.py` and the ClickUp parsers (`/report-bugs-to-clickup`, `/report-improvements-to-clickup`) read them. Every `###` subsection under Recommended Actions has at least one `-` bullet (`- None for this run.`), with no `---` line directly after the bullets. `## Accessibility Audit`, `## Console & Logs Health` and `## Visual & UX Observations` are always present: filled in when the package carries their section or you noticed something, otherwise one line, `N/A (not this suite's strategy)` or `N/A (covered by S-0NN)`. A score dimension you did not evaluate is `N/A` with the reason, and the remaining weights are renormalised (§ 3).
 
 Header rules the ClickUp parsers depend on:
 - The title is exactly `# QA Report — <suite title>` (em dash). **Mobile suites end the title with `(Mobile iOS)` or `(Mobile Android)`**: the parser tags a ticket as Mobile only when "mobile" appears in the title.

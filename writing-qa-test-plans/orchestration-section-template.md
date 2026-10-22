@@ -18,15 +18,24 @@ Each worker owns exactly one suite on one lane.
 
 **Lanes and waves** (at most 6 live worker panes, verify workers included; at most one `maestro-mcp` lane per platform and one `chrome` lane at a time; <lower cap and reason, if any>):
 
-| Wave | L1-ios | L2-android | L3-web | Depends on |
-|---|---|---|---|---|
-| 0 | preflight: boot, install, health check (orchestrator) | ← | ← | – |
-| 1 | S-001 smoke | S-004 smoke | S-007 smoke | wave 0 |
-| 2 | S-002 acceptance | S-005 regression (`adb`, or `maestro-cli` on existing flows) | S-008 regression | own lane's smoke accepted |
-| 3 | S-003 a11y | S-006 performance (alone, last) | S-009 cross-system (ledger) | … |
-| close | verify workers for remaining FAILs · cross-platform parity (orchestrator) · consolidated report | | | all suites accepted |
+| Wave | L1-ios | L2-android | L2b-android | L3-web | L4-api | Depends on |
+|---|---|---|---|---|---|---|
+| 0 | preflight: boot, install, health check (orchestrator) | ← | ← | ← | – | – |
+| 1 | S-001 smoke | S-004 smoke | S-010 smoke | S-007 smoke | S-012 api-blackbox | wave 0 (API: none) |
+| 2 | S-002 acceptance | S-005 regression (`adb`, or `maestro-cli` on existing flows) | S-011 negative-validation | S-008 regression | | own lane's smoke at least pending verification |
+| 3 | S-003 a11y | S-006 performance (alone, last) | S-013 text-quality | S-009 cross-system (ledger) | | … |
+| verify | one verify worker per lane when its queue is empty, when 8 findings are pending, or at once for a critical-path smoke FAIL | | | | | |
+| close | cross-platform parity (orchestrator) · consolidated report | | | | | every lane's findings verified or waived |
 
-A lane moves to its next suite as soon as the previous one on that lane is accepted. It does not wait for the other lanes.
+A lane moves to its next suite as soon as the previous one on that lane is `accepted (pending verification)`. It does not wait for the other lanes, nor for its own verify worker.
+
+**Standard sections per suite** (from `evaluation-standard.md`'s table; `make-package.sh` prints the final list at dispatch):
+
+| Platform | § 4 error guessing | § 5 auth | § 6 a11y | § 8 visual | § 9 text |
+|---|---|---|---|---|---|
+| ios | S-00N | S-002 | S-003 | <suite or "fallback → S-002 (+15 min)"> | … |
+| android | S-011 | S-011 | <…> | <…> | S-013 |
+| web | … | … | … | … | … |
 
 **Model policy** (verify the effective model on the worker's status line):
 
@@ -62,19 +71,20 @@ herdr agent start s001 --kind claude --pane "$pane" --timeout 120000 -- \
   --model sonnet --permission-mode <mode approved by the user> \
   --strict-mcp-config --mcp-config "$run_dir/mcp-L1-ios.json" \
   --add-dir "$run_dir" "${DENY_SECRETS[@]}" -n "S-001 smoke L1-ios"   # DENY_SECRETS: devices-and-tools.md § Secret deny rules
-herdr agent prompt s001 "Read $run_dir/S-001.package.md and execute it exactly. Write your run report to $run_dir/S-001.md and end with STATUS and REPORT lines." --wait --timeout 3600000
+herdr agent prompt s001 "Read $run_dir/S-001.package.md and execute it exactly. Write your run report to $run_dir/S-001.md and end with STATUS and REPORT lines." --wait --timeout 1440000   # timebox 20 min × 1.2
 ```
 
-**Verify worker.** Agent `s0NN-v<N>`, on the same lane after the test worker has exited, with the same MCP config and flags (`--chrome` on a Chrome lane), `-n "S-0NN verify"`, prompt "Read $run_dir/S-0NN.verify-package.md and execute it exactly. Write your report to $run_dir/S-0NN.verify.md and end with STATUS and REPORT lines."
+**Verify worker, per lane.** Agent `v<lane-slug>-<N>` (e.g. `vl2-1`), on the same lane after its test worker has exited, with the same MCP config and flags (`--chrome` on a Chrome lane), `-n "<lane> verify <N>"`. Package: `make-package.sh --role verify --suite <every suite with pending findings, comma-separated> --name <lane>-v<N> --findings $run_dir/<lane>.findings.md …`. Prompt "Read $run_dir/<lane>-v<N>.verify-package.md and execute it exactly. Write your report to $run_dir/<lane>-v<N>.verify.md and end with STATUS and REPORT lines." A critical-path smoke FAIL is verified alone and at once (`--suite S-0NN --name S-0NN-v1`, agent `s0NN-v1`).
 
 **Suites that run alone:** <performance-stability and Mac-offline network suites, by id>. They start only when no other test worker is live.
 
-**Acceptance per suite.** All of these must hold:
+**Acceptance per suite.** Stage A (`accepted (pending verification)`, frees the lane):
 - the worker is idle or done and its run report says `STATUS: PASS`. That status is about the execution: the suite ran to the end or to its timebox. Bugs found do not make it FAIL;
-- every scenario of the suite has PASS / FAIL / BLOCKED in `qa-report.md`;
-- every FAIL has an evidence file that exists and that the orchestrator opened;
-- every High or Medium FAIL was re-reproduced by a verify worker (CONFIRMED / NOT REPRODUCED / FLAKY);
-- the happy path has a success screenshot.
+- `check-report.py` exits 0 (template, score arithmetic, every scenario of the suite with PASS / FAIL / BLOCKED / not run / N/A, evidence files that exist, run report STATUS);
+- the orchestrator opened every FAIL screenshot and the happy path's success screenshot;
+- the worker wrote only where allowed.
+
+Stage B (`accepted`): every High or Medium bug has a verify verdict (CONFIRMED / NOT REPRODUCED / FLAKY) from the lane's verify worker, and the verdicts are applied to `qa-report.md`.
 
 **ClickUp** (or `**ClickUp:** none` plus the reason):
 - Source tickets: <ids>. The orchestrator fetches them fresh at execution and quotes them into `<suite>.clickup.md` for the packages.

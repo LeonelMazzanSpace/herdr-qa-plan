@@ -26,8 +26,11 @@ Write the plan in the project's language (`{project_language}`); keep the headin
 
 | # | Decision | Source | Status |
 |---|---|---|---|
-| D1 | <e.g. Workers run with `--permission-mode auto`> | <user / plan author> | <approved / adopted by plan author / to confirm> |
-| D2 | <e.g. Verified bugs are created in ClickUp list 9001 "Bugs"> | user | to confirm |
+| D1 | Platforms in scope: <iOS, Android, web, API, or all> (asked first) | user | approved |
+| D2 | User types covered: <admin (`ADMIN_EMAIL`), end user (`TEST_USER_EMAIL`), …; roles without an account named> | <user / vault / `.env.example`> | <approved / to confirm> |
+| D3 | <e.g. Two Android `adb` lanes: Pixel_8_API_34 on 5554 and 5556 (`--read-only`), Mac has 32 GB> | plan author | adopted by plan author |
+| D4 | <e.g. Workers run with `--permission-mode auto`> | <user / plan author> | <approved / adopted by plan author / to confirm> |
+| D5 | <e.g. Verified bugs are created in ClickUp list 9001 "Bugs"> | user | to confirm |
 
 ## Strategy coverage (orchestrator-only section)
 
@@ -42,7 +45,7 @@ Every strategy from the catalog, with no omissions.
 
 ## Global Constraints
 
-- The evaluation standard (`executing-qa-test-plans/evaluation-standard.md`, appended to every package) applies to every suite: evidence rules, severity, quality score, error guessing, AUTH scenarios, accessibility, console/logs, visual, text, tenants, API rules, report template. The lines below add only project-specific rules.
+- The evaluation standard (`executing-qa-test-plans/evaluation-standard.md`) applies to every suite; each package carries § 0, 1, 2, 3, 7, 11 and 13 plus the sections its strategy owns (error guessing, AUTH scenarios, accessibility, visual, text, tenants, API, scripted suites), listed in the package under "Scope of the evaluation standard". Every worker still reports what it notices in evidence it already has. The lines below add only project-specific rules.
 - Known non-bug quirks: <list, or "see context/navigation-map.md § Known Non-Bug Quirks", or "none recorded">.
 - Never create, modify or delete production data. Never complete a purchase or payment, press a bulk or external-facing control (emails, notifications to real people), or approve/deny third-party records, unless this plan's decisions explicitly allow it.
 - Credentials are referenced by `.env` variable name only. Never print, echo or write their values.
@@ -55,8 +58,9 @@ Every strategy from the catalog, with no omissions.
 |---|---|---|---|---|---|---|---|
 | L1-ios | ios | iPhone 16 Pro (simulator) | iOS 18.2 | `<udid>` | `maestro-mcp` (installed) · or `axe` (D<n>, to confirm) | <.app path> | one worker at a time; one `maestro-mcp` lane per platform |
 | L2-android | android | Pixel_8_API_34 (emulator) | API 34 | `emulator-5554` (console 5554) | `adb` (no install) | <.apk path> | one worker at a time |
+| L2b-android | android | Pixel_8_API_34 (emulator, `--read-only`) or <second AVD> | API 34 | `emulator-5556` (console 5556) | `adb` (no install) | <.apk path> | one worker at a time; default from 16 GB (D3) |
 | L3-web | web | Chrome (Claude in Chrome, the user's profile) | – | – | `chrome` (`--chrome`, no install) | <base URL> | one worker at a time; the only Chrome lane |
-| L4-api | api | none (Bash `curl`) | – | – | `http` | <API base URL · version> | one worker at a time |
+| L4-api | api | none (Bash `curl`) | – | – | `http` | <API base URL · version> | one worker at a time; starts in wave 1 |
 
 Drivers come from `devices-and-tools.md` § Driver choice per lane (executing-qa-test-plans). A lane whose driver is not installed names the decision that installs it.
 
@@ -65,7 +69,10 @@ Drivers come from `devices-and-tools.md` § Driver choice per lane (executing-qa
 | Lane | Role | Account (`.env` variable names, as they exist in `.env.example`) | Exclusive data range |
 |---|---|---|---|
 | L1-ios | <end user> | `<TEST_USER_EMAIL>` / `<TEST_USER_PASSWORD>` | <e.g. records named `QA-L1-*`, dates 2026-11-01…07> |
+| L2b-android | <end user, second account> | `<TEST_USER2_EMAIL>` / `<TEST_USER2_PASSWORD>` (or the same account with the risk recorded as a decision) | <`QA-L2B-*`> |
 | L3-web | <admin> | `<ADMIN_EMAIL>` / `<ADMIN_PASSWORD>` | <reads L1/L2 records; creates `QA-L3-*`> |
+
+User types the app has, from the user-types question (source: user / vault / `.env.example`): <admin, operator, end user, …>. Roles without an account in `.env.example`: <list, each a `to confirm` decision>.
 
 Each lane creates and edits only data in its own range, so parallel lanes never collide. Never write a variable name that does not exist; a missing account for a role is a `to confirm` decision. Seed data the suites rely on: <list, or "none">.
 

@@ -13,7 +13,7 @@ Checked against Maestro CLI 2.11.0 (2026-09-29), herdr 0.9.1, Claude Code 2.1.30
 | web | `chrome` — Claude in Chrome, the native integration of Claude Code: worker started with `--chrome`, no MCP server, no install. Drives the user's real Chrome and profile (logged-in state included). **One Chrome lane at a time** (every session shares one tab group). Desktop viewport only (`resize_window`; no device emulation) | Chrome running, extension installed and signed in to the same claude.ai org, direct Anthropic plan (not Bedrock/Vertex), `/login` session | `playwright-mcp` when the user approves `npx -y @playwright/mcp@0.0.83` (pinned, § Worker MCP config): isolated profile per lane (parallel web lanes), `--device`/`--viewport-size` for the 375×667 mobile-web pass, headless. Never the default |
 | api | `http` (Bash `curl`) | curl | – |
 
-Second lane of the same platform: Android → another `adb` lane (another AVD). iOS → an `axe` lane (approved install) or, without AXe, suites that only run existing flow files with `maestro-cli` (one CLI invocation per flow set, never per step: each costs 9–22 s). Web → a `playwright-mcp` lane (approved install); without it, web suites run one after the other on the Chrome lane.
+Second lane of the same platform: Android → another `adb` lane, **the default from 16 GB of RAM** (another AVD, or the same AVD booted again with `--read-only` on the next even port; no creation needed). iOS → an `axe` lane, the default when AXe is already installed, otherwise an approved install; without AXe, suites that only run existing flow files with `maestro-cli` (one CLI invocation per flow set, never per step: each costs 9–22 s). Web → a `playwright-mcp` lane (approved install); without it, web suites run one after the other on the Chrome lane. API lanes need no device and always run as their own lane.
 
 Device-level helpers (`xcrun simctl`, `adb` setup commands below) are always available and never count as a driver.
 
@@ -105,7 +105,7 @@ Workers start with `--strict-mcp-config --mcp-config <run-dir>/mcp-<lane>.json`.
 { "mcpServers": { "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@0.0.83", "--isolated", "--viewport-size", "1440,900", "--output-dir", "<evidence dir of the suite>"] } } }
 ```
 
-**Pinned version: `@playwright/mcp@0.0.83`** (published 2026-09-28; its README lists `--isolated`, `--viewport-size`, `--device` and `--output-dir`, checked 2026-10-15). Workers run this package with Bash and screen access, so it is never `@latest`. To move to a newer version, read its release notes, check the flags with `npx -y @playwright/mcp@<new> --help`, then change the version here, in `SKILL.md`, `driver-protocol.md` and the README in one commit.
+**Pinned version: `@playwright/mcp@0.0.83`** (published 2026-09-28; its README lists `--isolated`, `--viewport-size`, `--device` and `--output-dir`, checked 2026-10-15). Workers run this package with Bash and screen access, so it is never `@latest`. **A Playwright MCP registered in the user's own Claude (`claude mcp list`) is not the run's driver**, whatever its version: workers start with `--strict-mcp-config` and see only `mcp-<lane>.json`, so the plan and the preflight check this pinned string, never the user's registration. Before dispatching a `playwright-mcp` lane: `grep -n '@playwright/mcp@' <plan> <run-dir>/mcp-*.json` shows only `@0.0.83`. To move to a newer version, read its release notes, check the flags with `npx -y @playwright/mcp@<new> --help`, then change the version here, in both `SKILL.md` files, `driver-protocol.md` and the README in one commit.
 
 `--viewport-size` follows the plan's web viewport scope:
 - **Desktop:** `1440,900`.
@@ -176,13 +176,13 @@ Rough RAM costs:
 - Maestro JVM: about 0.5–1 GB per session (none on `adb` / `axe` lanes).
 - Playwright browser: about 0.5–1 GB (a `chrome` lane uses the Chrome already open).
 
-On a 16 GB Mac, plan at most 4 devices in total, and no more than 2 of them Android emulators. Before adding a lane, check that memory pressure is green with `memory_pressure` or Activity Monitor. A third simulator next to an emulator is a decision to test on the actual machine, not a default.
+On a 16 GB Mac, plan at most 4 devices in total, and no more than 2 of them Android emulators: the default of two `adb` lanes plus one iOS simulator fits. Before booting the second Android device, check that memory pressure is green (`memory_pressure`, or Activity Monitor); if it is not, run one Android lane and record it. A third simulator next to two emulators is a decision to test on the actual machine, not a default.
 
 ## Herdr and Claude
 
 - `herdr pane split --pane <id> --direction right|down --cwd <dir> --no-focus` → read `.result.pane.pane_id`.
 - `herdr agent start <name> --kind claude --pane <pane> --timeout 120000 -- <claude flags>`.
-- `herdr agent prompt <name> "<text>" --wait --timeout 3600000`; `herdr agent read <name> --source visible`; `herdr agent list`; `herdr agent wait <name> --timeout …`.
+- `herdr agent prompt <name> "<text>" --wait --timeout <timebox min × 1.2 × 60000>` (a 20-minute suite: `1440000`); `herdr agent read <name> --source visible`; `herdr agent list`; `herdr agent wait <name> --timeout …`.
 - Claude flags used: `--model`, `--permission-mode`, `--add-dir`, `--strict-mcp-config`, `--mcp-config`, `--disallowedTools`, `-n`, and `--chrome` on `chrome` lanes only.
 
 ### Secret deny rules (defense in depth)
