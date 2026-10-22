@@ -10,12 +10,13 @@ disable-model-invocation: true
 
 **Manual only.** This skill has `disable-model-invocation: true`: it runs only when the user types `/executing-qa-test-plans` (optionally with the plan path, or "status" / "continuá" for a run in progress). It never starts on its own.
 
-One orchestrator session runs a plan written with `/writing-qa-test-plans`. It boots one device per lane, gives each suite to a fresh Claude worker in its own Herdr pane, and checks each result itself. Every High or Medium bug is then re-reproduced by an independent verify worker before it counts. Finally it consolidates one report for the run.
+One orchestrator session runs a plan written with `/writing-qa-test-plans`. It boots one device per lane, gives each suite to a fresh Claude worker in its own Herdr pane, and checks each result with `check-report.py` plus its own eyes on the FAIL screenshots. A lane moves to its next suite as soon as those checks pass; every High or Medium bug is re-reproduced later by one independent verify worker per lane before it counts. Finally it consolidates one report for the run.
 
 **Core principles:**
-- A worker's report is a claim, not evidence. A suite is `accepted` only after the orchestrator has read the report, opened the evidence and had the bugs verified.
-- A FAIL is a claim until it is re-reproduced. Only `confirmed` bugs leave the run (ClickUp, summary "must fix").
+- A worker's report is a claim, not evidence. A suite is `accepted (pending verification)` once the orchestrator has run the mechanical checks, opened the FAIL evidence and checked the worker's scope; it is `accepted` once its High and Medium bugs have a verify verdict.
+- A FAIL is a claim until it is re-reproduced. Only `confirmed` bugs leave the run (ClickUp, summary "must fix"). Verification happens off the lane's critical path, in batches, except for a smoke failure on a critical path.
 - One device, one live worker. The orchestrator owns the devices; workers only drive them.
+- Each worker carries only the sections of the evaluation standard its strategy owns (`make-package.sh` prints them). Coverage is tracked per platform by the orchestrator, not by every worker auditing every screen.
 
 **REQUIRED BACKGROUND:** the `herdr` and `herdr-agent-orchestration` skills (CLI, agent states), superpowers:verification-before-completion. **How results are judged** lives in `evaluation-standard.md`, which `make-package.sh` appends to every package. It carries what qa-team-spacedev evaluated: evidence rules, severity, the six-dimension quality score, error guessing, AUTH-01…12, accessibility, console/logs, visual, text, tenants and roles, API rules, and the report template. You hold workers to it when accepting.
 
@@ -23,7 +24,7 @@ One orchestrator session runs a plan written with `/writing-qa-test-plans`. It b
 
 **Installs are decisions.** Maestro, AXe, Playwright MCP, Java: nothing is installed, downloaded with `npx`, or added with `brew` unless the plan records it as `approved` or the user says yes in the preflight. The defaults need no install beyond the platform SDKs: `adb` for Android, Claude in Chrome (`--chrome`) for web, Maestro for iOS when it is already there.
 
-**Herdr agent names:** test worker `s0NN`; verify worker `s0NN-v<N>`; full restart `s0NN-a<N>`.
+**Herdr agent names:** test worker `s0NN`; verify worker `v<lane-slug>-<N>` (one per lane batch, e.g. `vl2-1`; `s0NN-v<N>` when it verifies a single suite at once, e.g. a smoke); full restart `s0NN-a<N>`.
 
 ## Roles
 
@@ -35,7 +36,7 @@ One orchestrator session runs a plan written with `/writing-qa-test-plans`. It b
 
   You do not test suites yourself: a device you are driving is a device a worker cannot own.
 - **Test worker:** runs one suite on one lane, writes `qa-report.md` and a run report, never orchestrates.
-- **Verify worker:** re-reproduces the listed findings on the same lane from a clean state, and nothing else.
+- **Verify worker:** re-reproduces the findings of one lane's pending suites, on that lane, from a clean state, and nothing else. CONFIRMED on the first reproduction; three attempts only when the first one does not reproduce.
 - Decide routine questions yourself and record them as D-numbers. Ask the user only about scope changes, extra devices, production access, destructive actions, and anything written outside the run (ClickUp tickets, vault, `context/` files).
 
 ## Asking the User
@@ -89,7 +90,10 @@ Example: the same preflight, asked this way.
 ## Preflight (once per run)
 
 1. `test "$HERDR_ENV" = 1`. If it fails, ask the user to start the orchestrator inside a Herdr pane.
-2. Read `QA-SCRATCHPAD.md` (create it from `scratchpad-template.md` if missing), the plan and its summary. Every `to confirm` decision that a lane needs must be answered before that lane is dispatched: permission mode, extra devices, Maestro install, production access. Ask them all in one message, shaped as in "Asking the User".
+2. Read `QA-SCRATCHPAD.md` (create it from `scratchpad-template.md` if missing), the plan and its summary. Then ask, in **one message** shaped as in "Asking the User", before anything is booted:
+   - **Scope of this run, always asked first, even when the plan is clear.** "What do we test in this run?" with one option per platform the plan covers (iOS, Android, Web, API) plus "All of them (as planned)" as the recommended default. Multi-select. A platform left out marks its lanes `skipped (user)` in the scratchpad; nothing of that platform is checked, booted or installed, and the summary lists it as not run by decision.
+   - **User types and accounts.** Show the roles and accounts from the plan's `## Test data and accounts` as status lines ("✅ End user: `TEST_USER_EMAIL`", "❌ Admin: no account in the plan"). If the plan records that a role exists without an account, or if the app has an admin area or several user types and the plan names only one role, ask: "Which user types should this run cover?" with the roles as multi-select items and the cost of each ("needs an account: the `.env` variable name"). Record the answer as a D-number. Never ask for a credential value, only the variable name.
+   - Every `to confirm` decision that a lane needs: permission mode, extra devices, Maestro / AXe / Playwright installs, production access.
 3. **Tooling.** Check each and record the result in the scratchpad:
    - `herdr --version`; `claude --help` for `--model`, `--permission-mode`, `--strict-mcp-config`, `--mcp-config`, `--add-dir`, `--disallowedTools`, `-n`; `jq --version`;
    - per lane, only what its `Tool:` needs (`devices-and-tools.md` § Driver choice per lane):
@@ -97,10 +101,10 @@ Example: the same preflight, asked this way.
      - `maestro-mcp` / `maestro-cli`: `maestro --version` (≥ 2.11), `java -version` (17+), plus `xcrun simctl help` or `adb version` for its platform;
      - `axe`: `axe --help`, `axe list-simulators`;
      - `chrome`: Chrome is running (`pgrep -x "Google Chrome"`), the Claude in Chrome extension is installed and signed in (the user confirms; `/chrome` in your own session shows the connection), and `claude --help` lists `--chrome`;
-     - `playwright-mcp` (only when its install decision is `approved`): `npx -y @playwright/mcp@0.0.83 --help` (the version pinned in `devices-and-tools.md`; never `@latest`) for `--isolated`, `--viewport-size`, `--device` and `--output-dir`;
+     - `playwright-mcp` (only when its install decision is `approved`): `npx -y @playwright/mcp@0.0.83 --help` (the version pinned in `devices-and-tools.md`; never `@latest`) for `--isolated`, `--viewport-size`, `--device` and `--output-dir`. **The pin is checked, not assumed:** a Playwright MCP the user already registered in their own Claude (`claude mcp list`) does not count as installed, whatever its version, because workers get only the run's `mcp-<lane>.json`. Before dispatching any `playwright-mcp` lane, `grep -n '@playwright/mcp@' <plan> <run-dir>/mcp-*.json` must show only `@0.0.83`; a `@latest` or another version anywhere is a plan error to fix first, recorded as a D-number;
      - `http`: `curl --version`.
 
-   Check only the tooling the plan's lanes use. A web-only run never asks for Maestro; a mobile-only run never starts a browser; an Android-only run never needs Java.
+   Check only the tooling the lanes in this run's scope use. A web-only run never asks for Maestro; a mobile-only run never starts a browser; an Android-only run never needs Java.
 
    A missing driver blocks only its lanes. Say what is missing and what it means, offer the install as a question (`devices-and-tools.md` has the commands), and wait for the yes before installing anything. Other lanes continue meanwhile. Without Maestro, Android lanes still run on `adb`; iOS lanes wait for Maestro or AXe.
 4. **Run dir:** `mkdir -p -m 700 ~/.cache/qa-runs/<run-id>`. Packages, run reports, findings files, MCP configs, excerpts and `ledger.md` live there. Evidence goes to the project's `evidence/`.
@@ -115,7 +119,7 @@ Example: the same preflight, asked this way.
    - **ClickUp tickets as source** (mode `on`): only for suites whose header names tickets. Resolve the connector (`ToolSearch` for `clickup`), fetch each ticket now with `clickup_get_task`, and quote title, description and acceptance criteria into `<run-dir>/<suite>.clickup.md`.
    - If an MCP is down: tell the user, keep only the suites that need it waiting, and run the rest. Never read the vault from disk, never invent ticket content, never reuse ticket text from an old run.
 6. **Devices, lane by lane:** `bash <skill-dir>/scripts/boot-device.sh …` with the plan's Device matrix values. Record the printed id, the `booted-by-this-run` line, and the installed build.
-   - Create extra simulators or AVDs only when the plan's decision for them is `approved`.
+   - Create extra simulators or AVDs only when the plan's decision for them is `approved`. A second Android lane on the **same AVD** (`--read-only`, another even port) needs no creation and no decision: the plan lists it as `adopted by plan author` when the Mac has 16 GB or more (`writing-qa-test-plans` § Lanes). Check `memory_pressure` (or `vm_stat`) before booting it; if memory is not green, boot one Android device only and record it.
    - **Animations off on every Android lane** (`devices-and-tools.md` § Android emulators): it halves Maestro's settle time and cuts `uiautomator dump` from 2 s to 0.5 s. Record it; restore at closing if the device stays up.
    - **Health check per lane**, with the lane's own driver and the plan's "First screen text":
      - `adb`: first `adb -s <serial> shell am force-stop dev.mobile.maestro` (a Maestro driver left on the device kills every `uiautomator dump` with exit 137), then `adb -s <serial> shell monkey -p <package> 1`, 3 s, `uiautomator dump` and `grep` the text;
@@ -132,12 +136,14 @@ Example: the same preflight, asked this way.
 ## Lane Loop
 
 Dispatch while there are fewer than **6 live worker panes** (test and verify workers both count, `caffeinate` does not), or fewer than the plan's lower cap.
-- Each lane runs its suites in plan order. A suite starts when the previous suite on its lane is `accepted` and its `Depends on` suites are accepted. Lanes advance independently; "waves" in the plan are only the intended order.
+- Each lane runs its suites in plan order. A suite starts when the previous suite on its lane is `accepted` **or `accepted (pending verification)`**, and its `Depends on` suites are at least `accepted (pending verification)`. Lanes advance independently; "waves" in the plan are only the intended order. The lane does not wait for verification: the device keeps testing while the findings queue up.
+- **API lanes** (`http`) need no device: dispatch their first suite in the first wave, together with the smokes.
 - **Suites that run alone:** `performance-stability`, and `network-conditions` suites that take the Mac offline, start only when no other test worker is live. Hold the other lanes' next suites until they finish.
 - At any moment, at most one live `maestro-mcp` worker per platform and one live `chrome` worker (preflight step 8).
-- When a pane frees up, use it in this order: pending verify workers first, then suites in plan order.
+- **Verify workers are dispatched per lane, not per suite.** A lane's verify worker starts when one of these holds: (a) the lane's queue is empty (its last suite is pending verification); (b) the lane's findings file has 8 or more pending High/Medium bugs, in which case it runs before the lane's next suite; (c) a **smoke** has a FAIL on a critical path, verified at once because it gates the lane. One verify worker takes at most 10 findings; split larger batches.
+- When a pane frees up, use it in this order: verify workers that are due, then suites in plan order.
 
-1. **Package:** `bash <skill-dir>/scripts/make-package.sh --plan … --suite S-0NN --model … --why … --run-id … --run-dir … --device <lane device id> --evidence evidence/<app-slug>/S-0NN-<slug>/<run-id>[-a<N>] --root <QA project root> [--vault-excerpts …] [--clickup-excerpts …] [--notes …]`. Patterns learned from earlier suites go in `--notes` (see Learning Across Suites).
+1. **Package:** `bash <skill-dir>/scripts/make-package.sh --plan … --suite S-0NN --model … --why … --run-id … --run-dir … --device <lane device id> --evidence evidence/<app-slug>/S-0NN-<slug>/<run-id>[-a<N>] --root <QA project root> [--vault-excerpts …] [--clickup-excerpts …] [--notes …]`. Patterns learned from earlier suites go in `--notes` (see Learning Across Suites). The script prints which sections of the evaluation standard the package carries and, when this suite is its platform's carrier, which cross-cutting sections it took as a fallback: record that line in the scratchpad's Suites table. A fallback means no suite on that platform owns the check; if the carrier's timebox cannot absorb it, say so to the user before dispatch (it is a plan gap, not a worker problem).
 2. **Pane:** check the width with `herdr pane layout --pane "$HERDR_PANE_ID"`.
    - At least 180 columns: two worker columns of up to 3 panes each, to the right of yours.
    - Narrower: one column, cap 4, recorded.
@@ -152,41 +158,46 @@ Dispatch while there are fewer than **6 live worker panes** (test and verify wor
 4. **Verify the effective model** on the status line (`herdr agent read s0NN --source visible`) and record it.
 5. **Prompt once,** as a Bash call with `run_in_background: true`, so you stay free; you are notified when it returns:
    ```bash
-   herdr agent prompt s0NN "Read <run-dir>/S-0NN.package.md and execute it exactly. Write your run report to <run-dir>/S-0NN.md and end with STATUS and REPORT lines." --wait --timeout 3600000
+   herdr agent prompt s0NN "Read <run-dir>/S-0NN.package.md and execute it exactly. Write your run report to <run-dir>/S-0NN.md and end with STATUS and REPORT lines." --wait --timeout <timebox minutes × 1.2 × 60000>
    ```
-   A verify worker gets: `"Read <run-dir>/S-0NN.verify-package.md and execute it exactly. Write your report to <run-dir>/S-0NN.verify.md and end with STATUS and REPORT lines."`
+   A verify worker gets: `"Read <run-dir>/<name>.verify-package.md and execute it exactly. Write your report to <run-dir>/<name>.verify.md and end with STATUS and REPORT lines."` (`<name>` is the `--name` given to `make-package.sh`, e.g. `L2-android-v1`). Set `--timeout` to the suite's timebox plus 20 % (in ms) instead of a flat hour, so a suite that overruns is noticed; a timeout is a notification, not a kill (see "When a Worker Stops or Breaks").
 6. **Scratchpad:** lane, pane, model, `dispatched`.
 
 While workers run, prepare the next packages, accept finished suites, and reconcile `herdr agent list` with the scratchpad. When idle, wait in bounded stretches; do not poll every few seconds.
 
 ## Accepting a Suite
 
-Accept a suite only when every check below passes, in order:
+Acceptance has two stages. Stage A frees the lane; stage B confirms the bugs.
+
+**Stage A — `accepted (pending verification)`**, every check in order:
 
 1. The worker is `idle` or `done`, and the **run report file** says `STATUS: PASS`. Chat text does not count. Run-report status is about the *execution*, not the app: PASS = the suite was run to the end (or to its timebox), whatever bugs it found; FAIL = the worker could not run it properly; BLOCKED = it could not start. FAIL and BLOCKED go to "When a Worker Stops or Breaks".
-2. `qa-report.md` exists in the suite's evidence dir and follows the evaluation standard's report template (§ 13):
-   - a `# QA Report — ` title and a `**Quality Score:** NN/100` line;
-   - `## Quality Score Breakdown` with the six dimensions. The total matches Σ score × weight, and the Executive Summary status matches the thresholds (≥ 85 PASS, 60–84 CONDITIONAL PASS, < 60 FAIL);
-   - a `## Bug Register` with the 4 columns, each severity consistent with the standard's criteria (§ 2);
-   - `## Scenario Results` covering every scenario ID of the suite (plus AUTH-01…12 for auth flows), each with PASS / FAIL / BLOCKED / `not run (timebox)` / N/A;
-   - `## Accessibility Audit` and `## Console & Logs Health` filled in, or `N/A` with the reason;
-   - `### Must Fix`, `### Should Fix` and `### Nice to Have` with at least one bullet each;
-   - the strategy-specific sections: `## Scope` and `## Navigation drift` for discovery, `## API coverage` for API.
+2. **Mechanical checks**, one command:
+   ```bash
+   /usr/bin/python3 <skill-dir>/scripts/check-report.py --plan <plan> --suite S-0NN --run-id <run-id> \
+     --report evidence/<app-slug>/S-0NN-<slug>/<run-id>/qa-report.md --run-report <run-dir>/S-0NN.md \
+     --findings-out <run-dir>/<lane>.findings.md
+   ```
+   It verifies the report template (§ 13): title and header fields, the six-dimension score and its arithmetic (N/A renormalised), the status against the thresholds, the Bug Register columns and severities, every scenario ID of the suite from the plan with a valid outcome, that every FAIL and every bug names an evidence file that exists, the fixed sections (`N/A (…)` counts as filled), the three Recommended Actions subsections, the strategy-specific sections, and the run report's STATUS line. It warns about screenshots nobody references. Exit 1 means at least one `FAIL` line: send the worker **only** the failing lines as a follow-up ("idle but no report" below) and run the check again. Do not read the report by hand to find what the script finds.
 
-   A missing scenario is a gap: send the worker a follow-up (step "idle but no report" below).
-3. **Open the evidence** of every FAIL (Read the image) and of the happy path. A FAIL whose screenshot does not show the claimed problem goes back to the worker, or straight to verification with that note.
+   `--findings-out` appends every High and Medium bug to the lane's findings file (skipping IDs already there), with its suite, qa-report path and evidence dir. Complete each block's `Steps`, `Expected` and `Actual` lines from the report's description before the verify worker reads it.
+3. **Open the evidence** of every FAIL (Read the image) and of the happy path. A FAIL whose screenshot does not show the claimed problem goes back to the worker, or to verification with that note in its findings block. **When two or more suites are waiting for this step,** delegate it: one subagent per suite (Agent tool), briefed with the suite id, the report path, the FAIL rows, the evidence dir and the question to answer for each FAIL ("does the screenshot show the claimed problem? yes / no / unclear, one line why"). You read their answers and decide; subagents never write to the report or the scratchpad.
 4. Check scope: the worker wrote only to its evidence dir, its run report, `maestro/flows/<suite>/` and the ledger, and touched no other lane's device.
-5. **Verification:**
-   - Exit the test worker (`/exit`, then confirm the shell prompt with `herdr pane read <pane> --source visible`).
-   - Write `<run-dir>/S-0NN.findings.md` listing every High and Medium bug: ID, steps, expected result, actual result, evidence path.
-   - Build the verify package with `make-package.sh --role verify --findings …` and launch `s0NN-v1` on the **same lane**, using a model ≥ the suite's (`opus` for security findings).
-   - You check Low bugs yourself from their screenshots. If the screenshot plainly shows the issue (a typo, a misaligned label), mark it `confirmed (screenshot)`. Otherwise add it to the verify worker's findings. Every severity can reach ClickUp once confirmed, as in the old `report-bugs-to-clickup` rule.
-6. **Apply the verdicts** in `qa-report.md` and in the scratchpad:
+5. **Low bugs** you check yourself from their screenshots now. If the screenshot plainly shows the issue (a typo, a misaligned label), mark it `confirmed (screenshot)`. Otherwise append it to the lane's findings file by hand. Every severity can reach ClickUp once confirmed, as in the old `report-bugs-to-clickup` rule.
+6. Write `accepted (pending verification)` in the scratchpad, exit the test worker (`/exit`, then confirm the shell prompt with `herdr pane read <pane> --source visible`), and **start the lane's next suite now** (Lane Loop). A suite with no High or Medium bug and no Low bug left to verify is `accepted` directly.
+
+   **Smoke exception:** a smoke whose FAIL is on a critical path (login, the app's main flow) is verified **before** the lane continues: build the verify package for that one suite (`--suite S-0NN`, `--name S-0NN-v1`) and dispatch it at once. Its later suites would be `blocked (smoke failed)` anyway, so nothing is lost by waiting here.
+
+**Stage B — verification, per lane**, when the Lane Loop says a verify worker is due:
+
+5b. Build the package from the lane's findings file: `make-package.sh --role verify --suite S-00A,S-00B --name <lane>-v<N> --findings <run-dir>/<lane>.findings.md …` (every suite with a pending finding goes in `--suite`, so their preconditions and test data are quoted). Launch `v<lane-slug>-<N>` on the **same lane**, with a model ≥ the highest of those suites (`opus` for security findings), after the lane's live test worker has exited. The worker needs a free device: a verify worker and a test worker never run on the same lane at once.
+5c. The verify worker's report (`<name>.verify.md`) carries one verdict per finding. Move verified blocks out of the pending findings file into `<lane>.verified.md` so the next batch starts clean.
+6. **Apply the verdicts** in each suite's `qa-report.md` and in the scratchpad:
    - `CONFIRMED` → `confirmed`;
    - `FLAKY k/n` → stays in the Bug Register, with "(intermittent k/n)" added to the description;
    - `NOT REPRODUCED` → move the row out of the Bug Register into `## Corrected false positives`, with the verify evidence. Never delete it.
 
-   If a verdict moves bugs, recompute the quality score and the status.
+   If a verdict moves bugs, recompute the quality score and the status, and run `check-report.py` again on that report. When every High and Medium bug of a suite has a verdict, the suite becomes `accepted`.
 6b. **Known or new: decided by the record.** For each confirmed bug, search the record:
    - ClickUp bug tickets, open or closed, only with ClickUp mode `on`;
    - earlier `qa-report.md` files under `evidence/`.
@@ -202,7 +213,7 @@ Accept a suite only when every check below passes, in order:
    Write the classification into the suite's `qa-report.md` under `## Record check` (`| Bug ID | Record | Link |`), so the HTML page shows it.
 6d. **Discovery drift** (a section missing, added or moved compared with `context/navigation-map.md`) is reported, never fixed in the map. At closing, suggest the user run `/qa-project-setup`.
 6e. **After a discovery suite is accepted,** show the user the sections, organisations and roles it found, and which ones the plan does not cover yet. With their OK, append one suite per uncovered section to the plan, on the same lane, with the next free IDs. Record it as a D-number. Packages always come from the plan. This is the old "Full Site Audit": discover, then test each path.
-7. Write `accepted` and start the lane's next suite. If the lane's **smoke** has a confirmed failure on a critical path, mark that lane's later suites `blocked (smoke failed)` and tell the user. That is a report, not a question: the other lanes keep running, and the blocked suites resume only if the user says so.
+7. If the lane's **smoke** has a confirmed failure on a critical path, mark that lane's later suites `blocked (smoke failed)` and tell the user. That is a report, not a question: the other lanes keep running, and the blocked suites resume only if the user says so. A smoke finding that is NOT REPRODUCED unblocks the lane: dispatch its next suite.
 8. **ClickUp, as you go** (mode `on` only): when the destination decision is `approved`, a bug can be filed as soon as it is `confirmed` (Closing step 3 rules). Filing does not have to wait for the end of the run.
 
 ## When a Worker Stops or Breaks
@@ -217,7 +228,8 @@ Accept a suite only when every check below passes, in order:
 | The suite is slow: one tool call per tap, a screenshot after every action, `maestro test` per step | Send one message naming the Driver protocol rules it is breaking (batch per step, verify by text, screenshots to files). Do not accept a suite whose evidence dir is full of unreferenced screenshots |
 | `adb` worker reports a unicode / emoji input step it cannot type | Known gap of the driver. The step is `N/A (driver)` in the report; if the scenario matters, schedule it on a `maestro-mcp` lane |
 | The app crashes during a scenario | That is a finding, not a worker failure. The worker records it with evidence and relaunches |
-| `--wait` timed out while still working | `herdr agent read` the pane. If it is progressing, wait again in the background. If nothing changed for 20 minutes, send `esc` and ask for a status report |
+| `--wait` timed out while still working (the timeout is the timebox + 20 %) | `herdr agent read` the pane. If it is progressing, wait again in the background and note the overrun. If nothing changed for 20 minutes, send `esc` and ask for a status report |
+| A verify worker reports BLOCKED on one finding (precondition gone, data consumed by a later suite) | That finding stays `reported (unverified: <reason>)`; the other verdicts of the batch are applied. Re-queue it for the lane's next batch if the precondition can be restored (seed data, `pm clear`), otherwise say so in the summary |
 | Timebox exceeded and still working | Ask it to stop and write the report with the remaining scenarios as `not run (timebox)` |
 | `idle` but no report or an incomplete report | Ask the same session to write or complete only the report from what it observed. Never resend the whole package |
 | Blocked on a tool-permission prompt | Do not answer it. Read the pane and tell the user, or change the dispatch deliberately |
@@ -237,14 +249,16 @@ Accept a suite only when every check below passes, in order:
 
 ## Learning Across Suites
 
-When a verified bug reveals a pattern (an unlabeled icon button, keyboard covering the submit button, a stale list after background/foreground), add it to the `--notes` of every later package on every platform. Also add parity checks to the closing comparison.
+When a **confirmed** bug reveals a pattern (an unlabeled icon button, keyboard covering the submit button, a stale list after background/foreground), add it to the `--notes` of every later package on every platform. Also add parity checks to the closing comparison. A bug that is still `reported` (pending verification) never goes into `--notes`: with verification batched per lane, a false positive would otherwise steer the next suites.
 
 ## Closing the Run
 
+0. **Nothing pending.** Every lane's findings file is empty (its last verify batch ran and its verdicts are applied), or the user waived verification ("Saltá la verificación"). Suites still `accepted (pending verification)` at this point are a blocker, not a closing step: dispatch the missing verify workers first. Then list, per platform, the cross-cutting sections of the standard (§ 4, 5, 6, 8, 9) that ran, which suite carried each, and the ones no suite carried because the platform's suites were skipped or blocked: that is the coverage statement of the summary.
 1. **Cross-platform parity:** compare the same flows across the iOS, Android and web reports, covering outcomes, copy and behaviour. Differences become findings in the summary.
 2. **Consolidated report:** `evidence/<app-slug>/QA-RUN-SUMMARY-<run-id>.md` in the project language, containing:
    - `**Overall Score:** NN/100`: the mean of the suite scores, with its status;
    - a per-suite table: lane, strategy, score, status, PASS/FAIL/BLOCKED/not run, confirmed bugs;
+   - `## Coverage by platform`: for each platform, which suite carried § 4, 5, 6, 8 and 9 of the standard (or "none: <reason>"), from the `make-package.sh` lines recorded at dispatch;
    - `## Cross-Cutting Issues`: problems that show up in more than one suite or platform;
    - `## Priority Fix List`: confirmed bugs ranked by severity across all suites, each marked new, known or possible regression, with evidence;
    - flaky and corrected findings;
@@ -303,8 +317,9 @@ For "status", "qué falta" or "continuá":
 | Need | Command |
 |---|---|
 | Boot a lane | `bash <skill-dir>/scripts/boot-device.sh --platform ios --udid U [--app A]` · `--platform android --avd N --port 5556 [--app A]` |
-| Test package | `bash <skill-dir>/scripts/make-package.sh --plan P --suite S-0NN --model M --why W --run-id R --run-dir D --device ID --evidence E --root ROOT [--vault-excerpts F] [--clickup-excerpts F] [--notes F] [--attempt N]` |
-| Verify package | same, plus `--role verify --findings <run-dir>/S-0NN.findings.md` |
+| Test package | `bash <skill-dir>/scripts/make-package.sh --plan P --suite S-0NN --model M --why W --run-id R --run-dir D --device ID --evidence E --root ROOT [--vault-excerpts F] [--clickup-excerpts F] [--notes F] [--attempt N] [--add-sections "6 8"]` — prints the standard sections carried |
+| Report checks (stage A) | `/usr/bin/python3 <skill-dir>/scripts/check-report.py --plan P --suite S-0NN --run-id R --report <evidence>/qa-report.md --run-report D/S-0NN.md --findings-out D/<lane>.findings.md` — exit 1 lists what to send back to the worker |
+| Verify package (per lane) | `make-package.sh … --role verify --suite S-00A,S-00B --name <lane>-v<N> --findings D/<lane>.findings.md` |
 | HTML results (required without ClickUp) | `/usr/bin/python3 <skill-dir>/scripts/render-results.py --evidence-root evidence/<app> --run-id R --out evidence/<app>/QA-RUN-RESULTS-R.html --title T [--lang es|en|bi] [--summary S] [--clickup-note N]` |
 | Live agents | `herdr agent list` · `herdr agent read <name> --source recent-unwrapped --lines 120` |
 | Devices | `xcrun simctl list devices booted` · `adb devices` |
@@ -322,6 +337,11 @@ These thoughts mean stop:
 | "Two web workers in Chrome, one per site" | One tab group for every session: they act in each other's tabs. One Chrome lane; parallel web needs approved Playwright lanes |
 | "The worker screenshots after every tap, that's thorough" | That is what makes a suite take an hour. Evidence is a file per checkpoint; verification is text. Send the protocol rule |
 | "The worker says FAIL, file it" | Open the screenshot, then verify it independently. Only confirmed bugs leave the run |
+| "I'll verify S-002's bugs now, before S-003 starts, to be safe" | That idles the device for 10–30 minutes per suite. Stage A frees the lane; the lane's verify worker runs when it is due. Only a critical-path smoke FAIL is verified at once |
+| "The report looks complete, I'll skip the script" | `check-report.py` finds the missing scenario or the wrong sum you will not. Run it; read the FAIL screenshots yourself |
+| "This smoke should also audit accessibility, it's thorough" | It carries only the sections its package lists. Coverage is per platform: the accessibility suite (or the carrier's fallback) owns § 6 |
+| "Playwright MCP is already in `claude mcp list`, so it's installed" | Workers get only `mcp-<lane>.json` with the pinned `@playwright/mcp@0.0.83`. A user-level registration, at `@latest` or any version, is not the run's driver |
+| "The user wants everything tested, no need to ask about platforms" | Scope is always the first question of a run: iOS, Android, web, API, or all, as the plan says. One message, one answer |
 | "The user said no questions, so file every bug now" | The instruction approves filing, not unverified bugs |
 | "Maestro is missing, I'll install it quickly" | Ask first. Web and Android lanes can run meanwhile |
 | "MCP tool not listed, have the worker write a script" | BLOCKED. Fix the driver config |
