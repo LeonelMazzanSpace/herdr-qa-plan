@@ -37,14 +37,17 @@ A lane moves to its next suite as soon as the previous one on that lane is `acce
 | android | S-011 | S-011 | <…> | <…> | S-013 |
 | web | … | … | … | … | … |
 
-**Model policy** (verify the effective model on the worker's status line):
+**Model policy** (`strategy-catalog.md` § Model per suite; verify the effective model on the worker's status line):
 
 | Suite | Model | Rationale |
 |---|---|---|
 | S-001 | sonnet | smoke against a fixed list of critical paths |
-| S-003 | opus | accessibility: judging labels, contrast, target sizes |
+| S-003 | sonnet | accessibility: labels, contrast and target sizes read from the tree; the default |
+| <S-0NN> | opus | only with D<n>: <what the user asked for by name>, cost stated (about 2× output tokens, shared usage limit) |
 | … | … | … |
-| Verify workers | ≥ the suite's model; opus for security findings | independent re-reproduction |
+| Verify workers | sonnet | independent re-reproduction; a restart after a second failed attempt goes one tier up |
+
+**Run budget** (said to the user at preflight, before dispatch): <N> suites × about 190 model calls per mobile suite and 200–320 per web suite (measured 2026-10-21/22; the higher web figure is without the batched Playwright protocol), plus about 10 % for the orchestrator ≈ <total> model calls, each re-reading up to 200k tokens of context. The account's usage limit is shared with the user's other sessions.
 
 **Device preflight** (orchestrator, wave 0; `bash <executing-qa-test-plans dir>/scripts/boot-device.sh` does boot + wait + install):
 
