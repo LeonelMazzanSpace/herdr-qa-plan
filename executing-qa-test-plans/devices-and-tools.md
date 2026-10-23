@@ -102,17 +102,25 @@ Workers start with `--strict-mcp-config --mcp-config <run-dir>/mcp-<lane>.json`.
 `playwright-mcp` lane (`mcp-L3-web.json`), only when the user approved the install. `--isolated` gives each worker its own in-memory browser profile, so two web lanes never share cookies:
 
 ```json
-{ "mcpServers": { "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@0.0.83", "--isolated", "--viewport-size", "1440,900", "--output-dir", "<evidence dir of the suite>"] } } }
+{ "mcpServers": { "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@0.0.83", "--isolated", "--viewport-size", "1440x900", "--output-dir", "<evidence dir of the suite>"] } } }
 ```
 
 **Pinned version: `@playwright/mcp@0.0.83`** (published 2026-09-28; its README lists `--isolated`, `--viewport-size`, `--device` and `--output-dir`, checked 2026-10-15). Workers run this package with Bash and screen access, so it is never `@latest`. **A Playwright MCP registered in the user's own Claude (`claude mcp list`) is not the run's driver**, whatever its version: workers start with `--strict-mcp-config` and see only `mcp-<lane>.json`, so the plan and the preflight check this pinned string, never the user's registration. Before dispatching a `playwright-mcp` lane: `grep -n '@playwright/mcp@' <plan> <run-dir>/mcp-*.json` shows only `@0.0.83`. To move to a newer version, read its release notes, check the flags with `npx -y @playwright/mcp@<new> --help`, then change the version here, in both `SKILL.md` files, `driver-protocol.md` and the README in one commit.
 
-`--viewport-size` follows the plan's web viewport scope:
-- **Desktop:** `1440,900`.
-- **Mobile web:** `375,667`.
-- **Both:** `1440,900`. For the mobile pass, the worker calls `browser_resize` to 375×667, repeats the in-scope checks, takes screenshots per viewport, and reports responsiveness issues per viewport. The plan's Worker environment says which applies.
+`--viewport-size` follows the plan's web viewport scope, written `WIDTHxHEIGHT` (the README's own example is `"1280x720"`; `1440,900` is not accepted):
+- **Desktop:** `1440x900`.
+- **Mobile web:** `375x667`.
+- **Both:** `1440x900`. For the mobile pass, the worker calls `browser_resize` to 375×667, repeats the in-scope checks, takes screenshots per viewport, and reports responsiveness issues per viewport. The plan's Worker environment says which applies.
 
 `--viewport-size` applies to Playwright only. A `chrome` lane resizes the real window with `resize_window` to the desktop size and cannot do the mobile pass.
+
+Other flags of 0.0.83 the plan may need (README checked 2026-10-23):
+- `--device "<name>"` uses Playwright's own device descriptors (`playwright-core` `deviceDescriptorsSource.json`): `iPhone SE` is 320×568; the 375×667 viewport is `iPhone SE (3rd generation)`. Prefer `--viewport-size 375x667` unless the plan also wants the device's user agent and touch events.
+- `--user-data-dir <run-dir>/profile-<lane>` instead of `--isolated` keeps cookies between the suites of one lane, so a login that needs an emailed or SMS code happens once per lane, not once per suite (the worker's question/answer files relay the code, `driver-protocol.md` § Common 10). One directory per lane, never shared, never the user's Chrome profile; the orchestrator removes it at closing.
+- `--secrets <run-dir>/secrets-<lane>.env`: a dotenv file whose values are **redacted from tool responses** (matching plain text is replaced before it reaches the model). The README calls it a convenience, not a security feature: it does not hand credentials to the tools, and a value typed into a search box still shows in the URL. The orchestrator writes it (mode 600) with only that lane's account variables, copied from `.env`.
+- **Credentials on a Playwright lane do not pass through the worker's context.** The orchestrator adds the lane's account variables to the server entry of `mcp-<lane>.json` as `"env": { "ADMIN_EMAIL": "<value from .env>", "ADMIN_PASSWORD": "<value from .env>" }` (file mode 600, inside the 700 run dir), and the worker reads them inside `browser_run_code_unsafe` as `process.env.ADMIN_EMAIL`, in the same call that fills the login form. `browser_fill_form` / `browser_type` with the literal value is a fallback the plan must record as a decision: the value then sits in the worker's context, and only `--secrets` keeps it out of snapshots and the report.
+- `--caps testing` adds `browser_verify_text_visible` and the other `browser_verify_*` assertions. `browser_run_code_unsafe`, `browser_snapshot`, `browser_take_screenshot`, `browser_console_messages` and `browser_network_requests` are core tools and need no capability.
+- `--output-dir` names only automatically named files. A screenshot with an explicit `filename`, or a `path` inside `browser_run_code_unsafe`, resolves against the workspace root (the QA project root): give it the evidence dir path.
 
 ## Expo / React Native builds
 
@@ -190,8 +198,10 @@ On a 16 GB Mac, plan at most 4 devices in total, and no more than 2 of them Andr
 The "never print credentials" rules are instructions, and a prompt-injected or confused worker can break an instruction. Every worker is also launched with deny rules for the obvious ways to leak `.env` values. Deny rules win over `--permission-mode auto`:
 
 ```bash
-DENY_SECRETS=(--disallowedTools "Read(./.env*)" "Read(**/.env*)" "Bash(printenv:*)" "Bash(env:*)" "Bash(export -p:*)" "Bash(declare -p:*)" "Bash(cat .env*)" "Bash(head .env*)" "Bash(tail .env*)" "Bash(grep * .env*)")
+DENY_SECRETS=(--disallowedTools "Read(./.env*)" "Read(**/.env*)" "Bash(printenv:*)" "Bash(env:*)" "Bash(export -p:*)" "Bash(declare -p:*)" "Bash(cat .env*)" "Bash(head .env*)" "Bash(tail .env*)" "Bash(grep * .env*)" "AskUserQuestion")
 ```
+
+`AskUserQuestion` is in the list for a different reason: a question widget in a 10-line pane cannot be read with `herdr agent read`, and a worker waiting on one looks idle. Workers ask through `<run-dir>/<name>.question.md` and read the answer from `<name>.answer.md` (`driver-protocol.md` § Common 10).
 
 - Workers still read variables the allowed way: `set -a && source .env && set +a && <command>` inside one command (evaluation standard § 12). That is why bare `set` is not denied.
 - This is best effort: a rule matches the command text, so it will not stop every clever construction. It narrows the accident surface; it is not a sandbox. Check `claude --help` lists `--disallowedTools` at preflight, and read a worker's first commands in its pane.

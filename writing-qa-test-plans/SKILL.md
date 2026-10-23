@@ -149,7 +149,7 @@ Every scenario has an ID (`S-001-03`), steps, an expected result and a technique
 
 ## Model Per Suite
 
-From `strategy-catalog.md` § Model per suite: `opus` for exploratory, accessibility, security and anything that has to judge; `sonnet` for smoke, acceptance and regression; `haiku` only for re-running existing flows with no judgment. Never `haiku` for a suite that reads screens (`adb`, `maestro-mcp`, `axe`, `chrome`, `playwright-mcp`). Give each suite a one-line rationale in the Orchestration model table.
+From `strategy-catalog.md` § Model per suite: every suite and every verify worker runs on `sonnet`. `opus` is the orchestrator's model; on a worker it is a recorded exception only: the restart one tier up after a second failed attempt, or a suite the user asked for by name, as a D-number that states the cost (about 2× the output tokens, against the account's shared usage limit). `haiku` only for re-running existing flows with no judgment; never `haiku` for a suite that reads screens (`adb`, `maestro-mcp`, `axe`, `chrome`, `playwright-mcp`). Give each suite a one-line rationale in the Orchestration model table. A preference carried over from a previous run ("last time we used opus") is not a rationale: ask, and record the answer with its cost.
 
 ## Summary File
 
@@ -161,7 +161,7 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 2. Every suite has the full header line. Its Lane exists in the Device matrix; its Depends on points to existing suites.
 3. No two suites on the same lane overlap in time. Never two `maestro-mcp` suites of the same platform, nor two `chrome` suites, scheduled at the same moment. At most 5 test lanes.
 4. Every lane has an account of the right role, whose variable names exist in `.env.example`, and a data range. A shared account or a missing role is a recorded decision.
-5. Every scenario has an ID, steps, an expected result and a technique.
+5. Every scenario has an ID, steps, an expected result and a technique, as a row of the suite's scenario table. Comparison suites too (`cross-platform-parity`, `cross-system-e2e`): `check-report.py` reads the IDs from `| S-0NN-NN |` rows, and scenarios written as prose are never found.
 6. Sources are honest: `Vault:` and `ClickUp:` say what was read, or `none` with the reason. Nothing was written to ClickUp or the vault.
 7. Decision statuses are honest. Every scope-changing decision the user has not answered (extra devices, ClickUp destination, any install: Maestro, AXe, Playwright MCP, Java; permission mode, production access) says `to confirm`. Every lane's `Tool:` is one the Device matrix can run without an unapproved install, or the lane's suites say they wait for that decision.
 8. Values not yet known (UDIDs of devices still to be created) say `resolved at execution`. Nothing else is a placeholder.
@@ -172,6 +172,7 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
    - the web viewport scope is stated.
 10. The first two questions were asked and answered: platforms (D1) and user types with their account variable names, each recorded as a decision with its source (user / vault / `.env.example`).
 11. No `@latest` and no unpinned package name anywhere in the plan (`grep -n 'latest\|@playwright/mcp' <plan>` shows only `@playwright/mcp@0.0.83`, if Playwright is in the plan at all).
+12. Every suite's `Model:` is `sonnet` (`haiku` only for a flow-only rerun). Each `opus`, if any, names in the Orchestration model table the D-number that approved it, with the cost stated; none says "as in the previous run". `grep -n 'Model:\*\* opus' <plan>` lists exactly the suites those D-numbers name.
 
 ## Handoff
 
@@ -195,6 +196,8 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 | Web lane planned on Playwright by habit | `chrome` (Claude in Chrome) is the default; Playwright only as an approved decision for what Chrome cannot do |
 | Two web lanes on Chrome | One tab group for every session. A second web lane is an approved Playwright lane |
 | Expected results written as "looks correct" | Write the text the tree must show; workers verify by text and screenshot only for evidence |
+| `opus` on every suite because the last run used it, or "to be safe" | Workers run on `sonnet`; `opus` is the orchestrator's model. A suite on `opus` needs a D-number that states the ~2× cost |
+| A comparison suite described in prose ("compare the booking flow across platforms") | A scenario table with `S-0NN-NN` rows, like every other suite: the checker and the HTML page read the rows |
 | Suites listing only "test the booking flow" | Scenarios with ID, steps, expected result and technique |
 | Silently dropping strategies because it is urgent | Coverage table: `deferred` with "time" as the reason |
 | Reading the vault from disk when the MCP fails | Ask; otherwise `Vault: none (MCP down)` |

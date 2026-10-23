@@ -7,11 +7,15 @@ header fields of the report template (evaluation-standard.md § 13), the quality
 arithmetic and its status, the Bug Register columns and severities, every scenario ID
 of the suite present in Scenario Results with a valid outcome, evidence files that
 exist, Recommended Actions bullets, strategy-specific sections, and the run report's
-STATUS line. It never judges whether a screenshot shows the claimed bug.
+STATUS line. It warns (never fails) about screenshots the report does not reference and
+about an evidence dir holding more than --max-screenshots-per-scenario images per plan
+scenario, outside the visual strategies (driver-protocol.md § Common, screenshot budget).
+It never judges whether a screenshot shows the claimed bug.
 
 Usage:
   /usr/bin/python3 check-report.py --plan <plan.md> --suite S-0NN --report <evidence-dir>/qa-report.md \
-    [--run-report <run-dir>/S-0NN.md] [--findings-out <run-dir>/<lane>.findings.md] [--run-id <run-id>]
+    [--run-report <run-dir>/S-0NN.md] [--findings-out <run-dir>/<lane>.findings.md] [--run-id <run-id>] \
+    [--max-screenshots-per-scenario 2]
 
 Prints one line per check (PASS / FAIL / WARN) and a summary; exit 1 when any check FAILs.
 --findings-out appends every High and Medium bug as a block for make-package.sh --role verify
@@ -40,6 +44,9 @@ STRATEGY_SECTIONS = {
     "multi-tenant-access": ["Results by organisation"],
 }
 NA = re.compile(r"(?i)^\s*n/?a\b")
+SCREENSHOT = re.compile(r"\.(png|jpe?g|gif|webp)$", re.I)
+# Strategies where the image is the check: one screenshot per screen or viewport is the point.
+VISUAL_STRATEGIES = {"ui-visual", "responsive-web", "text-quality", "localization", "platform-discovery"}
 
 
 class Checks:
@@ -114,6 +121,8 @@ def main():
     ap.add_argument("--run-report", default="", help="the worker's run report in the run dir")
     ap.add_argument("--findings-out", default="", help="append High/Medium bugs as findings for the verify worker")
     ap.add_argument("--run-id", default="")
+    ap.add_argument("--max-screenshots-per-scenario", type=int, default=2,
+                    help="warn above this many screenshots per plan scenario (visual strategies exempt)")
     a = ap.parse_args()
     c = Checks()
 
@@ -243,15 +252,18 @@ def main():
         name = rr.cell(row, 0)
         if files_in(name):
             check_files(c, "Evidence Files: %s exists" % name.strip("`"), name, evidence_dir)
-    unref = []
     try:
-        for f in sorted(os.listdir(evidence_dir)):
-            if re.search(r"\.(png|jpe?g|gif|webp)$", f, re.I) and f not in text:
-                unref.append(f)
+        shots = sorted(f for f in os.listdir(evidence_dir) if SCREENSHOT.search(f))
     except OSError:
-        pass
+        shots = []
+    unref = [f for f in shots if f not in text]
     if unref:
         c.warn("%d screenshot(s) in the evidence dir not referenced by the report" % len(unref), ", ".join(unref[:8]))
+    own_shots = [f for f in shots if not f.startswith("v-")]   # v-* belong to the verify worker
+    budget = a.max_screenshots_per_scenario * len(plan_ids)
+    if plan_ids and strategy not in VISUAL_STRATEGIES and len(own_shots) > budget:
+        c.warn("%d screenshots for %d scenarios, budget %d (%d per scenario; driver-protocol.md § Common)"
+               % (len(own_shots), len(plan_ids), budget, a.max_screenshots_per_scenario))
 
     # Run report
     if a.run_report:

@@ -129,9 +129,13 @@ Each lane creates and edits only data in its own range, so parallel lanes never 
 | Platform | `ios` · `android` · `web` · `api` · `none` (comparison suites) |
 | Lane | a lane id from the Device matrix, or `none` |
 | Tool | `adb` (Android default) · `maestro-mcp` (iOS default when installed) · `axe` (iOS, approved install) · `maestro-cli` (existing flow files only) · `chrome` (web default) · `playwright-mcp` (web, approved install) · `http` · `shell` · combinations with `+` |
-| Model | `opus` · `sonnet` · `haiku` |
+| Model | `sonnet` (every suite and verify worker) · `opus` (only with a D-number stating the cost) · `haiku` (flow-only reruns) |
 | Priority | `P0` · `P1` · `P2` |
 | Depends on | suite ids (`S-001 accepted`), or `none` |
 | Timebox | minutes |
 | Vault | note paths the worker needs, or `none` |
 | ClickUp | ticket ids whose content the worker needs, or `none` |
+
+## Scenario rows are the contract with the checker
+
+`check-report.py` (executing-qa-test-plans) reads a suite's scenario IDs from the rows `| S-0NN-NN | … |` of its table and demands one outcome per row in the worker's report. Every suite lists its scenarios that way, comparison suites included (`cross-platform-parity`, `cross-system-e2e`): a scenario written as prose, or a table whose first column is not the ID, gives a suite with zero scenarios to check. One row per check; the Expected column holds a text the tree or the response can prove.

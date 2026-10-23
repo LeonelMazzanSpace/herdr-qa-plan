@@ -43,6 +43,9 @@ Lo que el estándar define:
 - **La verificación no frena el carril.** Una suite queda `accepted (pending verification)` apenas pasa el chequeo mecánico y el orquestador vio las capturas de los FAIL; el carril arranca la siguiente suite en ese momento. Un único verify worker por carril re-reproduce los bugs High y Medium acumulados cuando el carril termina su cola, cuando junta 8 hallazgos, o de inmediato si un smoke falla en un flujo crítico. CONFIRMED a la primera reproducción; los 3 intentos solo cuando la primera no reproduce.
 - **La aceptación es mecánica donde puede serlo.** `scripts/check-report.py` valida el template del reporte, la aritmética del puntaje, la cobertura de escenarios contra el plan y la existencia de cada archivo de evidencia en milisegundos; el orquestador solo abre las imágenes de FAIL, y en paralelo con subagentes cuando varias suites terminan juntas.
 - **Más carriles por default.** Dos carriles Android con `adb` desde 16 GB de RAM (segundo AVD o el mismo con `--read-only`, sin instalar nada), segundo carril iOS si AXe ya está instalado, y el carril de API siempre propio, arrancando en la primera ola.
+- **Workers en Sonnet.** Todos los workers (test y verify) corren en `sonnet`; `opus` es el modelo del orquestador (tu sesión) y en un worker solo entra como excepción registrada: el reintento tras un segundo intento fallido, o una suite que pediste por nombre, con su costo anotado como decisión (≈2× tokens de salida, contra el límite de uso compartido de la cuenta). Un plan no puede poner `opus` "porque la corrida anterior lo usó".
+- **Presupuesto de capturas.** Una por el estado final del happy path más una por cada FAIL; las suites visuales (`ui-visual`, `responsive-web`, `text-quality`, `localization`, `platform-discovery`) una por pantalla o viewport. `check-report.py` avisa cuando una suite pasa de dos capturas por escenario.
+- **Costo anunciado antes de despachar.** El preflight dice cuántas llamadas al modelo va a consumir la corrida (≈190 por suite mobile y 200–320 por suite web, medidas en octubre de 2026) y recuerda que el límite de uso de la cuenta es compartido con tus otras sesiones.
 
 ## Cómo interactúan rápido con el dispositivo
 
@@ -52,7 +55,9 @@ El cuello de botella no es el emulador sino la cantidad de turnos del modelo y l
 - una sola llamada por paso del escenario (flow Maestro de varios comandos, `axe batch`, un Bash con varias líneas de `adb`, `browser_batch` en Chrome);
 - verificar por texto (`assertVisible` ≈ 150 ms, `grep` sobre el dump) y guardar capturas directo a archivo; la imagen inline (160–250 KB) solo cuando el chequeo es visual;
 - nunca `maestro test` ni `maestro hierarchy` por paso (9–22 s cada invocación); el CLI solo corre archivos de flows enteros;
-- animaciones apagadas en Android (`uiautomator dump` baja de 2,1 s a 0,5 s).
+- animaciones apagadas en Android (`uiautomator dump` baja de 2,1 s a 0,5 s);
+- en Playwright, un `browser_run_code_unsafe` por escenario (navegar, actuar, esperar, verificar el texto y guardar la captura en una sola llamada); `browser_snapshot` una vez por pantalla nueva, solo para encontrar selectores. Sin esto, una corrida web de 25 suites costó el doble de llamadas que una mobile de 26;
+- las preguntas de un worker (un código de login, una precondición que falta) van a `<run-dir>/<suite>.question.md`, nunca a un widget en el panel (`AskUserQuestion` está bloqueado al lanzarlo); el orquestador responde en `.answer.md`, y un código de login pedido hace más de 8 minutos se vuelve a pedir en lugar de reenviarlo vencido.
 
 ## Fuentes opcionales
 
