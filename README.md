@@ -45,6 +45,7 @@ Lo que el estándar define:
 - **Más carriles por default.** Dos carriles Android con `adb` desde 16 GB de RAM (segundo AVD o el mismo con `--read-only`, sin instalar nada), segundo carril iOS si AXe ya está instalado, y el carril de API siempre propio, arrancando en la primera ola.
 - **Workers en Sonnet.** Todos los workers (test y verify) corren en `sonnet`; `opus` es el modelo del orquestador (tu sesión) y en un worker solo entra como excepción registrada: el reintento tras un segundo intento fallido, o una suite que pediste por nombre, con su costo anotado como decisión (≈2× tokens de salida, contra el límite de uso compartido de la cuenta). Un plan no puede poner `opus` "porque la corrida anterior lo usó".
 - **Presupuesto de capturas.** Una por el estado final del happy path más una por cada FAIL; las suites visuales (`ui-visual`, `responsive-web`, `text-quality`, `localization`, `platform-discovery`) una por pantalla o viewport. `check-report.py` avisa cuando una suite pasa de dos capturas por escenario.
+- **El orquestador no se queda sin contexto: pasa la posta.** Lee su propio uso de contexto del panel de Herdr (`ctx:N%`) antes de cada despacho, aceptación y lote de veredictos. Al llegar al 70% termina solo el paso en curso, escribe una entrada de relevo en `QA-SCRATCHPAD.md` (agentes vivos, dispositivos, cola de verificación, preguntas abiertas, próxima acción), arranca un orquestador nuevo (`orch-N`) en un panel nuevo, espera su confirmación y se retira; el relevo cierra el panel viejo y sigue. Los workers y los dispositivos no se enteran. Nunca depende de la compactación de contexto.
 - **Costo anunciado antes de despachar.** El preflight dice cuántas llamadas al modelo va a consumir la corrida (≈190 por suite mobile y 200–320 por suite web, medidas en octubre de 2026) y recuerda que el límite de uso de la cuenta es compartido con tus otras sesiones.
 
 ## Cómo interactúan rápido con el dispositivo
@@ -72,7 +73,7 @@ El cuello de botella no es el emulador sino la cantidad de turnos del modelo y l
 ## Requisitos
 
 - Herdr, con la integración de Claude (`herdr integration install claude`), y el orquestador corriendo dentro de un panel (`HERDR_ENV=1`);
-- Claude Code;
+- Claude Code, con la status line mostrando el porcentaje de contexto (`ctx:N%`): el relevo del orquestador depende de esa lectura y el preflight se detiene si no aparece;
 - los skills `herdr` y `herdr-agent-orchestration`;
 - el plugin Superpowers (`verification-before-completion`);
 - Xcode con simuladores, y Android Studio con al menos un AVD (`emulator`, `adb`). Con eso alcanza para los carriles Android (`adb`);

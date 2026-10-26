@@ -1,6 +1,6 @@
 ---
 name: executing-qa-test-plans
-description: Executes an approved QA test plan with parallel Claude Code workers in Herdr panes, each driving its own Android emulator (adb), iOS simulator (Maestro MCP or AXe), Chrome (Claude in Chrome, native; Playwright MCP only by decision) or API; also resumes, reports status of, or closes such a run. Manual only — run /executing-qa-test-plans <plan>.
+description: Executes an approved QA test plan with parallel Claude Code workers in Herdr panes, each driving its own Android emulator (adb), iOS simulator (Maestro MCP or AXe), Chrome (Claude in Chrome, native; Playwright MCP only by decision) or API; also resumes, reports status of, closes such a run, or takes it over as a relief orchestrator. Manual only — run /executing-qa-test-plans <plan>.
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Overview
 
-**Manual only.** This skill has `disable-model-invocation: true`: it runs only when the user types `/executing-qa-test-plans` (optionally with the plan path, or "status" / "continuá" for a run in progress). It never starts on its own.
+**Manual only.** This skill has `disable-model-invocation: true`: it runs only when the user types `/executing-qa-test-plans` (optionally with the plan path, or "status" / "continuá" for a run in progress). It never starts on its own. The one session you did not type yourself is a relief orchestrator: the run is yours, and its orchestrator hands it over by pointing the relief at this file (Handing Off to a Relief Orchestrator).
 
 One orchestrator session runs a plan written with `/writing-qa-test-plans`. It boots one device per lane, gives each suite to a fresh Claude worker in its own Herdr pane, and checks each result with `check-report.py` plus its own eyes on the FAIL screenshots. A lane moves to its next suite as soon as those checks pass; every High or Medium bug is re-reproduced later by one independent verify worker per lane before it counts. Finally it consolidates one report for the run.
 
@@ -24,7 +24,7 @@ One orchestrator session runs a plan written with `/writing-qa-test-plans`. It b
 
 **Installs are decisions.** Maestro, AXe, Playwright MCP, Java: nothing is installed, downloaded with `npx`, or added with `brew` unless the plan records it as `approved` or the user says yes in the preflight. The defaults need no install beyond the platform SDKs: `adb` for Android, Claude in Chrome (`--chrome`) for web, Maestro for iOS when it is already there.
 
-**Herdr agent names:** test worker `s0NN`; verify worker `v<lane-slug>-<N>` (one per lane batch, e.g. `vl2-1`; `s0NN-v<N>` when it verifies a single suite at once, e.g. a smoke); full restart `s0NN-a<N>`.
+**Herdr agent names:** test worker `s0NN`; verify worker `v<lane-slug>-<N>` (one per lane batch, e.g. `vl2-1`; `s0NN-v<N>` when it verifies a single suite at once, e.g. a smoke); full restart `s0NN-a<N>`; orchestrators `orch-1` (you, renamed in the preflight), then `orch-2`, `orch-3`, … for each relief (see Handing Off).
 
 ## Roles
 
@@ -32,7 +32,9 @@ One orchestrator session runs a plan written with `/writing-qa-test-plans`. It b
   - boots, installs and shuts down devices;
   - writes the worker MCP configs, packages and findings files;
   - dispatches, accepts and consolidates;
-  - is the only writer of `QA-SCRATCHPAD.md`, the vault and ClickUp.
+  - is the only writer of `QA-SCRATCHPAD.md`, the vault and ClickUp;
+  - keeps its own context under **70%** and hands the run to a relief orchestrator when it gets there (Context check, Handing Off). The run never relies on context compaction;
+  - records every user answer or instruction that changes the run as a D-number **when it is given**: after a hand-off, only the scratchpad speaks.
 
   You do not test suites yourself: a device you are driving is a device a worker cannot own.
 - **Test worker:** runs one suite on one lane, writes `qa-report.md` and a run report, never orchestrates.
@@ -96,6 +98,8 @@ Example: the same preflight, asked this way.
    - Every `to confirm` decision that a lane needs: permission mode, extra devices, Maestro / AXe / Playwright installs, production access.
 3. **Tooling.** Check each and record the result in the scratchpad:
    - `herdr --version`; `claude --help` for `--model`, `--permission-mode`, `--strict-mcp-config`, `--mcp-config`, `--add-dir`, `--disallowedTools`, `-n`; `jq --version`;
+   - your own context reading: `herdr pane read "$HERDR_PANE_ID" --source visible | grep -o 'ctx:[0-9]*%' | tail -1` must print a value (e.g. `ctx:12%`). It comes from the user's Claude Code status line (`context_window.used_percentage`). If it prints nothing, stop and ask the user, in the "Asking the User" shape, to add it to their status line: the hand-off rule depends on it. Record `Context monitoring: ok` and the value in the scratchpad;
+   - name yourself: `herdr agent rename "$HERDR_PANE_ID" orch-1` (a relief keeps the name it was started with), and record your own model alias (the one the user started you with; the status line shows its display name) as a D-number: a relief is started with it;
    - per lane, only what its `Tool:` needs (`devices-and-tools.md` § Driver choice per lane):
      - `adb`: `adb version`, `emulator -list-avds`. No Maestro, no Java;
      - `maestro-mcp` / `maestro-cli`: `maestro --version` (≥ 2.11), `java -version` (17+), plus `xcrun simctl help` or `adb version` for its platform;
@@ -136,7 +140,7 @@ Example: the same preflight, asked this way.
 
 ## Lane Loop
 
-Dispatch while there are fewer than **6 live worker panes** (test and verify workers both count, `caffeinate` does not), or fewer than the plan's lower cap.
+Dispatch while there are fewer than **6 live worker panes** (test and verify workers both count; `caffeinate` and a relief orchestrator's pane do not), or fewer than the plan's lower cap.
 - Each lane runs its suites in plan order. A suite starts when the previous suite on its lane is `accepted` **or `accepted (pending verification)`**, and its `Depends on` suites are at least `accepted (pending verification)`. Lanes advance independently; "waves" in the plan are only the intended order. The lane does not wait for verification: the device keeps testing while the findings queue up.
 - **API lanes** (`http`) need no device: dispatch their first suite in the first wave, together with the smokes.
 - **Suites that run alone:** `performance-stability`, and `network-conditions` suites that take the Mac offline, start only when no other test worker is live. Hold the other lanes' next suites until they finish.
@@ -169,6 +173,16 @@ Dispatch while there are fewer than **6 live worker panes** (test and verify wor
 While workers run, prepare the next packages, accept finished suites, and reconcile `herdr agent list` with the scratchpad. When idle, wait in bounded stretches; do not poll every few seconds.
 
 **Questions from workers** arrive as `<run-dir>/<name>.question.md` without a matching `<name>.answer.md` (`driver-protocol.md` § Common 10). Each time you check on the workers, `ls <run-dir>/*.question.md`. Answer what is yours (a precondition you can create, a path, a plan fact) by writing the answer file; ask the user what is theirs (a login code they received, a scope choice), in the "Asking the User" shape, then write their answer. A login code is worth about 10 minutes: if more than 8 minutes have passed since the question's timestamp, ask the user to request a fresh code rather than relaying the old one. Once the worker has used the answer, move both files to `<run-dir>/answered/` (workers cannot delete files in `auto` mode). A worker that waited 8 minutes without an answer has already marked those scenarios BLOCKED; re-prompt it with the answer only if the suite is still running.
+
+### Context check
+
+Before every dispatch, before every Stage A acceptance, before applying a batch of verdicts, and each time you reconcile `herdr agent list`, read your own context:
+
+```bash
+herdr pane read "$HERDR_PANE_ID" --source visible | grep -o 'ctx:[0-9]*%' | tail -1
+```
+
+Write the value and the time in the scratchpad header. The reading lags one turn; that is fine. At **70% or more**, finish only the step in progress (one acceptance, one batch of verdicts, one package, one ticket) and go to Handing Off; never the lane's queue. Opening FAIL screenshots is what fills your context fastest: when two or more suites wait for Stage A step 3, delegate it as that step says. The threshold changes only by an explicit user instruction, recorded as a D-number.
 
 ## Accepting a Suite
 
@@ -311,12 +325,45 @@ When a **confirmed** bug reveals a pattern (an unlabeled icon button, keyboard c
      - **Update:** ask which `## Flow:` entry. Edit only what the user says changed (a step, a test-data value, a URL), never rewrite the entry. Set `**Last successful run:**` to today on PASS. On FAIL, leave the existing date untouched: never overwrite a real date with `never run`.
 6. **Vault** (if any): offer the sync (`updating-typed-knowledge-vaults` for typed vaults). Write only with the user's yes.
 7. **Data and devices:** list the records each lane created in its data range. Ask before deleting any. Ask before shutting down the devices this run booted. Remove `<run-dir>/profile-*`, `<run-dir>/secrets-*.env` and the Playwright lanes' `mcp-<lane>.json` now, without asking: they hold logged-in sessions and credential values and belong to no one after the run.
-8. Close only the panes this run created. Update the scratchpad and the daily log (`.claude/daily-update.md`, one line per milestone, if the user's or project's instructions use one). Then give the user, in plain words: the result, the checks run, bugs by severity, coverage gaps, and the live resources still running.
+8. Close only the panes this run created, except your own. Update the scratchpad and the daily log (`.claude/daily-update.md`, one line per milestone, if the user's or project's instructions use one). Then give the user, in plain words: the result, the checks run, bugs by severity, coverage gaps, and the live resources still running.
+
+## Handing Off to a Relief Orchestrator
+
+At 70% context you hand the run to a fresh session, `orch-<N>`, that resumes from the scratchpad. Nothing in your chat survives: the relief has the scratchpad, the plan, the D-numbers and the run dir, and nothing else. Workers do not notice, and neither do the devices: reports are files and the devices keep running. You run from the QA project root; `<QA root>` below is that directory.
+
+### As the outgoing orchestrator
+
+1. **Safe point.** Nothing half done:
+   - no Stage A acceptance or batch of verdicts in progress, no `check-report.py` fix loop open, no package half-written, no `boot-device.sh` running, no subagent from Stage A step 3 still working (they die with you);
+   - no ClickUp ticket created without its read-back recorded: finish that one, and list the confirmed bugs still to file in the entry;
+   - no user answer unrecorded. A question widget open to the user dies with your pane: take the answer first, or leave the question in the entry for the relief to ask again;
+   - during Closing, the safe point is between two numbered steps, and the entry says which step is next.
+
+   Your background `--wait` prompts to workers die with your session; the relief re-arms them.
+2. **Start the relief** below your own pane, so it takes your column when yours closes. Its pane does not count toward the worker cap.
+   ```bash
+   split=$(herdr pane split --pane "$HERDR_PANE_ID" --direction down --cwd "<QA root>" --no-focus)
+   pane=$(printf '%s' "$split" | jq -r '.result.pane.pane_id')
+   herdr agent start orch-<N> --kind claude --pane "$pane" --timeout 120000 -- --model <your model alias, from its D-number> --permission-mode <approved mode> --add-dir <run-dir> -n "Orchestrator <N>"
+   ```
+   Verify its effective model as for any worker (Lane Loop step 4). Never start it with `--resume` or `--continue`: that loads the context you are shedding.
+3. **Write the hand-off entry** from `handoff-template.md` into the scratchpad, from a fresh `herdr agent list`, `adb devices`, `xcrun simctl list devices booted`, `ls <run-dir>/*.question.md` and `herdr pane layout`, never from memory: relief pane and effective model; live agents with pane, state, lane, device id, timebox end and the report each will write; verify queue per lane; open worker questions; ClickUp bugs still to file; the exact next action. Then write the relief prompt from the same template to `<run-dir>/handoff-orch-<N>.md`.
+4. **Prompt it once**, no `--wait`: `herdr agent prompt orch-<N> "Read <run-dir>/handoff-orch-<N>.md and execute it exactly."` On `agent_prompt_stalled`, handle it as in Lane Loop step 5.
+5. **Wait for its confirmation**, bounded and in the background (a pure-bash loop, 10 minutes, no `timeout` binary needed): `bash -c 'for i in $(seq 1 40); do grep -q "Resumed by orch-<N>" "<QA root>/QA-SCRATCHPAD.md" && exit 0; sleep 15; done; exit 1'`. Your turn ends there and Herdr shows you `idle`; that is expected. Until that line exists, the run is still yours: if a worker reports meanwhile, re-read the scratchpad and add one line under the entry (`s005 reported <report path> at <time>`) and nothing else; no acceptance, dispatch or verdict. If the loop expires, read `herdr agent read orch-<N>`: a permission prompt goes to the user, never answered by you; still `working` → wait once more; dead or stuck → record it, `herdr pane close` its pane, and start `orch-<N+1>` from step 2.
+6. **Leave.** When the loop returns with the line present, say one line to the user, in English (the run now belongs to `orch-<N>`), and stop. Write nothing more in the scratchpad and run nothing more: no dispatch, acceptance, ticket or prompt. The relief closes your pane and announces itself; you cannot run `/exit` on yourself. If the relief closed your pane before the loop returned, nothing is lost.
+
+### As the relief
+
+1. Preflight as a resume: `HERDR_ENV`, `herdr --version`, `claude --help` for the launch flags, your own context reading, `claude mcp list` for the vault and ClickUp MCPs (only if the run uses them). Skip every question of preflight step 2, the installs, the device boots and health checks, the MCP configs, the cost estimate and `caffeinate`: scope, accounts, installs, permission mode, ClickUp mode and cap are D-numbers in the scratchpad; reuse them and do not create new ones. The devices and the run dir are already there.
+2. Read the whole scratchpad (D-numbers, Lanes, Suites, Verification batches, Bugs, ClickUp), the plan and its summary; the last hand-off entry is your starting point. Append `Resumed by orch-<N> at <time>` to Recent activity. From that line, you are the only writer; only then update the header with your context reading and `Context monitoring: ok`.
+3. Reconcile `herdr agent list`, `adb devices`, `xcrun simctl list devices booted`, the run dir and `ls <run-dir>/*.question.md` with the entry. A difference (a report already present, an agent gone, a device down, a question with no answer) is a line in Recent activity now and a step of the Lane Loop later, not a reason to act here. Re-arm one background `herdr agent wait <name> --timeout <ms until its timebox ends>` per agent whose row says `working`; a wait that times out while the worker is still `working` is the "`--wait` timed out" row of When a Worker Stops or Breaks. File the ClickUp bugs the entry lists, with the Closing step 3 rules.
+4. `herdr agent wait <outgoing name> --timeout 600000` until it is idle, then `herdr pane close <its pane>`. Closing the previous orchestrator's pane is the one exception to "close only panes you created"; never close it while it is `working` (wait again). Then `herdr agent focus orch-<N>` and tell the user, in English, in one line that you own the run in this pane.
+5. Continue the Lane Loop from "Next action". Hand off to `orch-<N+1>` the same way at 70%.
 
 ## Status and Resume
 
 For "status", "qué falta" or "continuá":
-1. Start from the scratchpad.
+1. Start from the scratchpad. If its last hand-off entry has no matching `Resumed by` line, the relief never took over: the run is yours, continue from the entry.
 2. Verify it against `herdr agent list`, `xcrun simctl list devices booted`, `adb devices` and the run dir. A recorded status does not prove a process is alive.
 3. Answer with progress per lane, bugs so far, blockers and the next action.
 
@@ -329,6 +376,8 @@ For "status", "qué falta" or "continuá":
 | Report checks (stage A) | `/usr/bin/python3 <skill-dir>/scripts/check-report.py --plan P --suite S-0NN --run-id R --report <evidence>/qa-report.md --run-report D/S-0NN.md --findings-out D/<lane>.findings.md` — exit 1 lists what to send back to the worker |
 | Verify package (per lane) | `make-package.sh … --role verify --suite S-00A,S-00B --name <lane>-v<N> --findings D/<lane>.findings.md` |
 | HTML results (required without ClickUp) | `/usr/bin/python3 <skill-dir>/scripts/render-results.py --evidence-root evidence/<app> --run-id R --out evidence/<app>/QA-RUN-RESULTS-R.html --title T [--lang es|en|bi] [--summary S] [--clickup-note N]` |
+| Own context | `herdr pane read "$HERDR_PANE_ID" --source visible \| grep -o 'ctx:[0-9]*%' \| tail -1` |
+| Hand-off | `handoff-template.md` → scratchpad entry + `<run-dir>/handoff-orch-<N>.md` · `herdr agent start orch-<N> …` · confirm with `Resumed by orch-<N>` |
 | Live agents | `herdr agent list` · `herdr agent read <name> --source recent-unwrapped --lines 120` |
 | Devices | `xcrun simctl list devices booted` · `adb devices` |
 
@@ -367,3 +416,8 @@ These thoughts mean stop:
 | "I'll ask again at the end whether to upload the bugs" | They already said none. Deliver the HTML; do not bring ClickUp up again |
 | "I'll tweak the HTML by hand" | Fix the markdown and render again |
 | "Shut down all simulators to clean up" | Only the ones this run booted, after asking |
+| "I'm at 72% but this suite is almost accepted" | The safe point is the step in progress, not the lane's queue. Hand off now |
+| "The relief can ask me for the details" | It cannot. What is not in the scratchpad, the plan or the run dir does not exist |
+| "Start the relief with `--resume` so it knows everything" | That loads the context you are shedding. Fresh session, from the scratchpad |
+| "I'll `/exit` myself after starting the relief" | You cannot run slash commands on yourself; the relief closes your pane |
+| "The relief will re-ask the user for the scope and the accounts" | Those are D-numbers. Re-asking is the outgoing orchestrator's failure to record them |
