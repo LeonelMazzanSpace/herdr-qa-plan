@@ -61,6 +61,7 @@ Every strategy from the catalog, with no omissions.
 | L2b-android | android | Pixel_8_API_34 (emulator, `--read-only`) or <second AVD> | API 34 | `emulator-5556` (console 5556) | `adb` (no install) | <.apk path> | one worker at a time; default from 16 GB (D3) |
 | L3-web | web | Chrome (Claude in Chrome, the user's profile) | – | – | `chrome` (`--chrome`, no install) | <base URL> | one worker at a time; the only Chrome lane |
 | L4-api | api | none (Bash `curl`) | – | – | `http` | <API base URL · version> | one worker at a time; starts in wave 1 |
+| L5-e2e | web | none (the project's Playwright runner, headless) | – | – | `playwright-test` (no install) | <base URL of `playwright.config.*`> | one worker at a time; only when the project has Playwright; starts in wave 1 unless it shares an account with another lane |
 
 Drivers come from `devices-and-tools.md` § Driver choice per lane (executing-qa-test-plans). A lane whose driver is not installed names the decision that installs it.
 
@@ -128,7 +129,7 @@ Each lane creates and edits only data in its own range, so parallel lanes never 
 | Strategy | a name from `strategy-catalog.md` |
 | Platform | `ios` · `android` · `web` · `api` · `none` (comparison suites) |
 | Lane | a lane id from the Device matrix, or `none` |
-| Tool | `adb` (Android default) · `maestro-mcp` (iOS default when installed) · `axe` (iOS, approved install) · `maestro-cli` (existing flow files only) · `chrome` (web default) · `playwright-mcp` (web, approved install) · `http` · `shell` · combinations with `+` |
+| Tool | `adb` (Android default) · `maestro-mcp` (iOS default when installed) · `axe` (iOS, approved install) · `maestro-cli` (existing flow files only) · `chrome` (web default) · `playwright-mcp` (web, approved install) · `playwright-test` (the project's own Playwright suite, no install) · `http` · `shell` · combinations with `+` |
 | Model | `sonnet` (every suite and verify worker) · `opus` (only with a D-number stating the cost) · `haiku` (flow-only reruns) |
 | Priority | `P0` · `P1` · `P2` |
 | Depends on | suite ids (`S-001 accepted`), or `none` |

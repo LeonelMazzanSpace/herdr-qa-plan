@@ -57,7 +57,9 @@ Keep blocking questions to one message, each with a proposed default. While you 
    - accounts per role (from the user-types question) and per organisation if the app has tenants, as `.env` variable names, never values. Check that the names exist in `.env.example`.
 
    A missing build is a precondition, not something you go and produce: suites on that platform are planned with the build as a `to confirm` decision. Expo / React Native: prefer a standalone simulator build and APK (`devices-and-tools.md` § Expo builds) over a dev client that needs Metro running.
-3. **Project context.** Read, if present: `context/navigation-map.md` (including `## Known Non-Bug Quirks`), `context/regression-flows.md`, `maestro/flows/`, `e2e-tests/` (a scripted Playwright suite: list its specs; a `functional-regression` suite with tool `shell` runs them, evaluation standard § 14), the project's CLAUDE.md. Absent files mean "none", not a blocker.
+3. **Project context.** Read, if present: `context/navigation-map.md` (including `## Known Non-Bug Quirks`), `context/regression-flows.md`, `maestro/flows/`, the project's CLAUDE.md. Absent files mean "none", not a blocker.
+
+   **The project's own Playwright tests.** The project has them when `playwright.config.{ts,js,mjs,cjs}` exists at the root or in `e2e-tests/`, or `@playwright/test` is in the `dependencies` or `devDependencies` of its `package.json` (read only those keys, with `jq`). When it does and web is in scope (D1), add one `functional-regression` suite, tool `playwright-test`, on its own no-device lane `Lx-e2e` (§ Lanes), as `adopted by plan author`: nothing is asked and nothing is installed. List its specs with the runner of the lockfile (`pnpm exec`, `yarn`, `npm exec --no --`; never a bare `npx`) and `playwright test --list`, which needs no browser, and write one scenario row per spec file (`| S-0NN-NN | <spec file> | run it | every test in it passes | scripted |`). Put the `baseURL` of the config in the Device matrix, and the accounts its specs read in `## Test data and accounts`. Web out of scope: the strategy is `not applicable (platform out of scope)`.
 4. **Vault (optional).** Check whether a vault MCP is connected (e.g. Obsidian; `claude mcp list` and its tools listed). Record the outcome in the scratchpad and in the plan header `Sources` line:
 
    | Outcome | Action |
@@ -113,6 +115,7 @@ Extra parallelism in a single-platform scope comes from more devices of that pla
   - **iOS: a second lane when `axe --help` already works** (an `axe` lane next to the `maestro-mcp` one, on another simulator that exists). Without AXe, a second iOS lane is a `to confirm` install decision.
   - **API: always its own lane** (`Lx-api`, tool `http`), dispatched in the first wave: it needs no device and no smoke.
   - **Web: one `chrome` lane.** A second one is a Playwright decision.
+  - **The project's Playwright suite: its own lane `Lx-e2e`** (platform `web`, tool `playwright-test`), no device and no MCP driver, headless in its own browsers: it is not the `chrome` lane and not `playwright-mcp`. It starts in the first wave. If its specs log in with an account another lane uses, record that as a decision and run it alone (§ Disturbing suites).
 
   Creating a new AVD or simulator, and any install, stays a `to confirm` decision with its cost (`devices-and-tools.md` § Resource budget). The executor checks memory pressure before booting the second Android device and falls back to one lane if it is not green.
 - **Driver limits.** At any moment, at most one live `maestro-mcp` worker per platform (fixed driver ports) and at most one live `chrome` worker (one tab group in the user's Chrome). Other lanes of the same platform use `adb` (Android), `axe` or `maestro-cli` with existing flows (iOS), or an approved `playwright-mcp` (web).
@@ -173,6 +176,7 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 10. The first two questions were asked and answered: platforms (D1) and user types with their account variable names, each recorded as a decision with its source (user / vault / `.env.example`).
 11. No `@latest` and no unpinned package name anywhere in the plan (`grep -n 'latest\|@playwright/mcp' <plan>` shows only `@playwright/mcp@0.0.83`, if Playwright is in the plan at all).
 12. Every suite's `Model:` is `sonnet` (`haiku` only for a flow-only rerun). Each `opus`, if any, names in the Orchestration model table the D-number that approved it, with the cost stated; none says "as in the previous run". `grep -n 'Model:\*\* opus' <plan>` lists exactly the suites those D-numbers name.
+13. If the project has Playwright tests (the predicate in Before Writing step 3) and web is in scope, the plan has one `playwright-test` suite with one scenario row per spec file, or the coverage table says why not.
 
 ## Handoff
 

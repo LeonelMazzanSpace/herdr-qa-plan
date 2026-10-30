@@ -14,7 +14,7 @@ Which sections a package carries:
 | § 9 text | `text-quality`, `localization` |
 | § 10 discovery and tenants | `platform-discovery`, `multi-tenant-access` |
 | § 12 API | `api-blackbox` |
-| § 14 scripted Playwright | `functional-regression` with tool `shell` |
+| § 14 scripted Playwright | `functional-regression` with tool `playwright-test` (or `shell`, older plans) |
 | § 0, 1, 2, 11 only | verify workers |
 
 A cross-cutting section (§ 4, 5, 6, 8, 9) that no suite of the same platform owns is carried by that platform's carrier suite (its first acceptance, functional-regression or exploratory suite in plan order, else its first smoke), so each platform keeps every check without three suites auditing the same screens. Whatever the sections, every worker reports what it notices in a tree or screenshot it already has (an unlabelled control, a raw i18n key, a typo, clipped text, a crash) with its normal severity, without auditing for it. Sections not in a package are not that worker's job and are not listed under its Coverage gaps: the orchestrator tracks coverage per platform.
@@ -308,8 +308,9 @@ The orchestrator, not the worker, later appends `## Verification (independent)` 
 
 Strategy-specific additions: discovery → `## Scope` and `## Navigation drift` after the Executive Summary; text-quality → bug IDs `TXT-<lane>-NN` and the § 9 description format; API → `## API coverage`; tenants → `## Results by organisation` (sections × organisations found live, never a fixed list); web with viewport scope Both → screenshots and responsiveness findings per viewport; scripted Playwright suites → `## Scripted suite results` (spec, test, result, error, artifact path).
 
-## 14. Scripted Playwright suite (`e2e-tests/`, strategy `functional-regression`, tool `shell`)
+## 14. Scripted Playwright suite (the project's own tests, strategy `functional-regression`, tool `playwright-test`)
 
-- Run only the specs the suite names: `cd e2e-tests && npx playwright test <spec or --grep>` (reporter as configured). Never edit spec files, fixtures or config; propose a fix in the report instead.
-- Each failing test: its error message, the artifact path (trace, screenshot, video), and whether it is a product defect, a stale test, or a missing precondition (BLOCKED: unset env variable, seed data absent).
+- Run only the specs the suite names, with the project's runner and its own config (Driver protocol § playwright-test). Never edit spec files, fixtures, snapshots or config; never `--update-snapshots`, never `--ui`; propose a fix in the report instead.
+- A failing test is a claim, not a bug. Open its failure screenshot and read its error, then classify it: **product defect** (Bug Register, with the screenshot), **stale test** (the test's expectation no longer matches intended behaviour: the scenario is `N/A (stale test)` and the test goes under Should Fix, never in the Bug Register), **missing precondition** (unset env variable, absent seed data, server not reachable: BLOCKED, never FAIL), or **environment** (browser crash, timeout with the app healthy: re-run it once, then BLOCKED).
+- A test that failed and then passed on retry is `flaky`: the scenario is PASS, its row in `## Scripted suite results` says `flaky (k/n)` and Should Fix names it.
 - A green scripted suite is not evidence a path works (§ 12). It says those assertions passed.
