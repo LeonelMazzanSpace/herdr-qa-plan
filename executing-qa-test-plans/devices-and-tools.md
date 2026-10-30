@@ -12,6 +12,7 @@ Checked against Maestro CLI 2.11.0 (2026-09-29), herdr 0.9.1, Claude Code 2.1.30
 | ios | `maestro-mcp` when Maestro is installed — the simulator has no native tap command. 0.9–3.6 s per tap, 180 ms per `inspect_screen`, 2.3 s for a 7-step flow. **One live `maestro-mcp` lane per platform** (fixed driver port) | Maestro CLI ≥ 2.11, Java 17+ | `axe` (brew, single binary, no Java, no daemon, no port limit) when the user approves it: the way to run a second iOS lane, or to run iOS without Maestro at all. If neither Maestro nor AXe is installed, iOS lanes are blocked until the user picks one |
 | web | `chrome` — Claude in Chrome, the native integration of Claude Code: worker started with `--chrome`, no MCP server, no install. Drives the user's real Chrome and profile (logged-in state included). **One Chrome lane at a time** (every session shares one tab group). Desktop viewport only (`resize_window`; no device emulation) | Chrome running, extension installed and signed in to the same claude.ai org, direct Anthropic plan (not Bedrock/Vertex), `/login` session | `playwright-mcp` when the user approves `npx -y @playwright/mcp@0.0.83` (pinned, § Worker MCP config): isolated profile per lane (parallel web lanes), `--device`/`--viewport-size` for the 375×667 mobile-web pass, headless. Never the default |
 | api | `http` (Bash `curl`) | curl | – |
+| web (the project's own Playwright tests) | `playwright-test` — the project's runner (`@playwright/test` from its `node_modules`), headless, results from a JSON file. No device, no MCP, not the user's Chrome, so it is outside the one-`chrome`-lane limit. Present when `playwright.config.*` exists or `@playwright/test` is in the project's dependencies | the project's `node_modules` and the Playwright browsers already downloaded (`playwright install` is an install: a decision) | – |
 
 Second lane of the same platform: Android → another `adb` lane, **the default from 16 GB of RAM** (another AVD, or the same AVD booted again with `--read-only` on the next even port; no creation needed). iOS → an `axe` lane, the default when AXe is already installed, otherwise an approved install; without AXe, suites that only run existing flow files with `maestro-cli` (one CLI invocation per flow set, never per step: each costs 9–22 s). Web → a `playwright-mcp` lane (approved install); without it, web suites run one after the other on the Chrome lane. API lanes need no device and always run as their own lane.
 
@@ -95,7 +96,7 @@ Workers start with `--strict-mcp-config --mcp-config <run-dir>/mcp-<lane>.json`.
 { "mcpServers": { "maestro": { "command": "maestro", "args": ["mcp", "--no-viewer", "--working-dir", "<QA project root>"] } } }
 ```
 
-`adb` lane, `axe` lane, `http` lane, `maestro-cli` lane: `{ "mcpServers": {} }`. They work through Bash and hold no MCP driver.
+`adb` lane, `axe` lane, `http` lane, `maestro-cli` lane, `playwright-test` lane: `{ "mcpServers": {} }`. They work through Bash and hold no MCP driver.
 
 `chrome` lane: `{ "mcpServers": {} }` **plus the `--chrome` flag** in the `herdr agent start` command. The Chrome tools are built in, not an MCP config entry; `--strict-mcp-config` keeps them.
 

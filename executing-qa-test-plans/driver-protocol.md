@@ -156,3 +156,15 @@ Only for running flow files that already exist (`maestro --device <id> test <dir
 ## http
 
 No device. Bash `curl` per the evaluation standard § 12. Batch related requests in one Bash call; print status and the fields you assert, never credentials.
+
+## playwright-test
+
+The project's own Playwright suite, run with its own runner and config. No device, no MCP, no install. Results are read from a JSON file, never from the console.
+
+1. **Runner from the lockfile, never a bare `npx`** (it downloads the package when it is not local): `pnpm-lock.yaml` → `pnpm exec`, `yarn.lock` → `yarn`, `package-lock.json` → `npm exec --no --`, none → `npx --no-install`. Below, `RUN` stands for it. Run from the folder that holds `playwright.config.*`.
+2. **One run per suite, headless, in one Bash call:** `set -a && source .env && set +a` (only if the project has one) then `PLAYWRIGHT_JSON_OUTPUT_NAME=<run-dir>/<suite>.pw.json RUN playwright test <the suite's spec files> --reporter=json --output <evidence dir>/pw-artifacts --trace=retain-on-failure`. A run longer than 8 minutes goes in the background (`run_in_background`); wait for it and read the JSON. Flags differ between versions: `RUN playwright test --help` is the reference.
+3. **Read the JSON with `jq`:** per test its `file:line`, status (`expected`, `unexpected`, `flaky`, `skipped`) and the first line of its error. The counts in your run report come from it; the orchestrator recomputes them from the same file.
+4. **Evidence is flat files.** For each failing test copy its failure screenshot to `<evidence dir>/NN-<spec>.png` and its error text to `NN-<spec>.txt`; name those files in the report. The trace stays under `pw-artifacts/` and is mentioned in the row, never listed as evidence (the `.zip` extension is not accepted).
+5. **Never** edit a spec, fixture, snapshot or config; `--update-snapshots`, `--ui`, `--debug` and `--retries` beyond the project's config are not yours. "Fix the selector so it passes" is the failure of this suite, not its job (§ 14).
+6. **The target is the plan's.** If the config's `baseURL` (or the env variable it reads) is not the plan's web base URL, stop with `STATUS: BLOCKED`; never point it at another environment.
+7. **A verify worker** re-runs only the failing tests, one `RUN playwright test <file>:<line>` each, with the same flags and a JSON file of its own (`<run-dir>/<name>.pw.json`).

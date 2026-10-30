@@ -120,7 +120,7 @@ field_of() {
                sub(/[[:space:]]+$/, "", s); print s; exit } }'
 }
 
-# Suites of the plan in order: "<id>\t<strategy>\t<platform>", one per line.
+# Suites of the plan in order: "<id>\t<strategy>\t<platform>\t<tool>", one per line.
 plan_suites() {
   awk '
     function field(line, key,   tag, i, s, j) {
@@ -133,7 +133,7 @@ plan_suites() {
     infence { next }
     /^### Suite S-[0-9]+:/ { id = $3; sub(/:$/, "", id); next }
     id != "" && index($0, "**Strategy:**") {
-      print id "\t" field($0, "Strategy") "\t" field($0, "Platform"); id = ""
+      print id "\t" field($0, "Strategy") "\t" field($0, "Platform") "\t" field($0, "Tool"); id = ""
     }' "$PLAN"
 }
 
@@ -197,14 +197,15 @@ fi
 # --- Which sections of the evaluation standard this package carries ---------
 PLAN_SUITES=$(plan_suites)
 OWNED=$(owns "$STRATEGY")
-case $TOOL in *shell*) ;; *) [ "$OWNED" != 14 ] || OWNED= ;; esac   # § 14 only runs scripted e2e-tests
+case $TOOL in *shell*|*playwright-test*) ;; *) [ "$OWNED" != 14 ] || OWNED= ;; esac   # § 14 only runs the project's scripted Playwright tests
 COVERED_BY=   # "6:S-003 8:S-007" — cross-cutting sections other suites of this platform own
 FALLBACK=     # cross-cutting sections nobody on this platform owns, carried here
 CARRIER=
 if [ -n "$PLATFORM" ] && ! is_none "$PLATFORM"; then
   first_smoke=
-  while IFS="$(printf '\t')" read -r id st pl; do
+  while IFS="$(printf '\t')" read -r id st pl tl; do
     [ "$pl" = "$PLATFORM" ] || continue
+    case $tl in *playwright-test*) continue ;; esac   # a headless scripted suite cannot audit screens: never the carrier
     case $st in
       acceptance|functional-regression|exploratory) [ -n "$CARRIER" ] || CARRIER=$id ;;
       smoke) [ -n "$first_smoke" ] || first_smoke=$id ;;
@@ -216,7 +217,7 @@ EOF
   for n in 4 5 6 8 9; do
     has "$n" "$OWNED" && continue
     owner=
-    while IFS="$(printf '\t')" read -r id st pl; do
+    while IFS="$(printf '\t')" read -r id st pl tl; do
       [ "$pl" = "$PLATFORM" ] || continue
       has "$n" "$(owns "$st")" && { owner=$id; break; }
     done <<EOF
@@ -270,6 +271,7 @@ case $TOOL in
   *axe*) DRIVER_CHECK="\`axe list-simulators\` must list \`$DEVICE\` as booted and \`axe describe-ui --udid $DEVICE\` must print the current screen. This suite has no MCP driver: every look and every action is an \`axe … --udid $DEVICE\` command (Driver protocol § axe at the end)." ;;
   *maestro-cli*) DRIVER_CHECK="\`maestro --version\` must work and the flow files the suite names must exist. This suite has no MCP driver: it runs existing flows with one \`maestro --device $DEVICE test\` per flow set (each invocation costs 9–22 s; never one per step)." ;;
   *http*) DRIVER_CHECK="\`curl --version\` must work. This suite has no MCP driver and no device: requests go through Bash \`curl\` following § 12 of the Evaluation standard." ;;
+  *playwright-test*) DRIVER_CHECK="the project's Playwright runner must answer \`playwright --version\` through the package manager of its lockfile, and \`playwright test --list\` must list the specs your suite names (Driver protocol § playwright-test at the end). This suite has no device and no MCP driver. Nothing is installed: a missing runner or browser is STATUS: BLOCKED." ;;
   *) DRIVER_CHECK="the commands your suite's Tool field names (${TOOL:-none}) must work against \`$DEVICE\`." ;;
 esac
 if [ "$ROLE" = verify ]; then

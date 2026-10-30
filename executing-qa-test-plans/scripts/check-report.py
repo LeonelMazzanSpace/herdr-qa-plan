@@ -245,7 +245,7 @@ def main():
         c.add(found_h and bullets > 0, "### %s has at least one bullet" % name)
     for name in STRATEGY_SECTIONS.get(strategy, []):
         c.add(bool(section_lines(sections, name)), "strategy %s: ## %s present" % (strategy, name))
-    if strategy == "functional-regression" and "shell" in fields.get("Tool", ""):
+    if strategy == "functional-regression" and any(t in fields.get("Tool", "") for t in ("shell", "playwright-test")):
         c.add(bool(section_lines(sections, "Scripted suite results")), "scripted suite: ## Scripted suite results present")
     eh, erows = rr.parse_table(section_lines(sections, "Evidence Files"))
     for row in erows:

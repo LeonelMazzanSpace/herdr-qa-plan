@@ -8,6 +8,9 @@ Dos skills para planificar y ejecutar QA de una app mobile (simuladores iOS de X
 | iOS | `maestro-mcp` si Maestro ya está instalado (un carril por plataforma) | no, si ya está | `axe` (brew, sin Java, sin límite de carriles) o instalar Maestro |
 | Web | `chrome`: el Chrome nativo de Claude Code (`--chrome`), tu propio perfil, un carril a la vez | no | `playwright-mcp` (npx) para carriles web en paralelo o el viewport mobile 375×667 |
 | API | `curl` | no | – |
+| Tests Playwright del proyecto | `playwright-test`: el runner del propio proyecto (`@playwright/test`), headless, sin dispositivo ni MCP | no | – |
+
+**Si el proyecto ya tiene Playwright** (un `playwright.config.*` o `@playwright/test` en su `package.json`) y la web está en el alcance, el plan suma una suite de regresión con esos tests en su propio carril sin dispositivo. La corre un Claude worker nuevo con el runner del proyecto (nunca un `npx` que descargue), lee los resultados de un JSON, clasifica cada falla (bug, test desactualizado, precondición o entorno) y no edita los tests ni actualiza snapshots. Si el plan es anterior a esta regla, el orquestador ofrece sumarla en el preflight.
 
 **Ninguna skill instala nada sin preguntarte.** Maestro, AXe, Playwright MCP o Java aparecen en el plan como decisión `to confirm`; si decís que no, los carriles que lo necesitaban quedan bloqueados y el resto corre igual.
 
