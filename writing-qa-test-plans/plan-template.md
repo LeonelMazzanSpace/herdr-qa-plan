@@ -31,6 +31,7 @@ Write the plan in the project's language (`{project_language}`); keep the headin
 | D3 | <e.g. Two Android `adb` lanes: Pixel_8_API_34 on 5554 and 5556 (`--read-only`), Mac has 32 GB> | plan author | adopted by plan author |
 | D4 | <e.g. Workers run with `--permission-mode auto`> | <user / plan author> | <approved / adopted by plan author / to confirm> |
 | D5 | <e.g. Verified bugs are created in ClickUp list 9001 "Bugs"> | user | to confirm |
+| D6 | <e.g. S-007 pays an order with the sandbox card, max 50 USD, account `TEST_USER_EMAIL`; asked to the user in its own question while writing the plan> | user | <approved / approved (stop before the final step) / skipped (user) / to confirm> |
 
 ## Strategy coverage (orchestrator-only section)
 
@@ -94,7 +95,7 @@ Each lane creates and edits only data in its own range, so parallel lanes never 
 
 ### Suite S-001: <title>
 
-**Strategy:** smoke · **Platform:** android · **Lane:** L2-android · **Tool:** adb · **Model:** sonnet · **Priority:** P0 · **Depends on:** none · **Timebox:** 20 min · **Vault:** none · **ClickUp:** none
+**Strategy:** smoke · **Platform:** android · **Lane:** L2-android · **Tool:** adb · **Model:** sonnet · **Priority:** P0 · **Depends on:** none · **Timebox:** 20 min · **Vault:** none · **ClickUp:** none · **Spend:** none
 
 **Objective / charter:** <for exploratory: "Explore <area> with <resources> to discover <risk>">
 
@@ -136,6 +137,7 @@ Each lane creates and edits only data in its own range, so parallel lanes never 
 | Timebox | minutes |
 | Vault | note paths the worker needs, or `none` |
 | ClickUp | ticket ids whose content the worker needs, or `none` |
+| Spend | `none`, or what moves money or value in this suite · the cap · the account or wallet (`.env` variable name) · the environment (sandbox, testnet, real), and its D-number |
 
 ## Scenario rows are the contract with the checker
 

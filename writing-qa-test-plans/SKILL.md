@@ -94,6 +94,14 @@ Keep blocking questions to one message, each with a proposed default. While you 
    **Playwright MCP is opt-in.** Offer it only when the plan needs what Chrome cannot do: parallel web lanes, the 375×667 mobile-web pass, headless, or an isolated profile without the user's logins. The option says it downloads and runs a third-party server with `npx`. If the user says web is Chrome only, the mobile-web viewport scope becomes `N/A (driver)` in the plan.
 8. **Decisions.** A decision **changes scope** if it changes what is tested, on which devices, against which environment, with which accounts, or whether anything is written outside the run (ClickUp tickets, production data). Ask about those. Routine choices (lane naming, suite order within a lane, timeboxes) are yours: `adopted by plan author`.
 
+**Money movement is told and asked here, once, apart from the plan.** A scenario that spends or moves money or value (a payment, purchase, subscription, top-up, transfer, withdrawal, refund or payout; on a blockchain, signing or sending a transaction, a token allowance, a swap, bridge, mint or stake) puts `**Spend:**` on its suite header: what moves, the cap, the account or wallet (`.env` variable name) and the environment (sandbox, testnet, real). Plan its scenarios up to the final Confirm / Pay / Send / Sign step, so they still say something if the user declines it. Once the scenarios are written, and before the plan goes to review, tell the user which scenarios move money (a status line per suite) and ask a separate question for each suite, never inside the plan review:
+
+- *Yes, run it up to <cap> in <environment>* → decision `approved`;
+- *Prepare it, but stop before the final step* → `approved (stop before the final step)`; with real money this is the recommended option;
+- *Skip it* → `skipped (user)`.
+
+A sandbox or testnet is cheaper, not exempt. Never write `approved` or `adopted by plan author` on your own. If the user cannot answer now, the decision stays `to confirm`, which the executor reads as not approved. The executor does not ask again during the run: it runs what this decision says.
+
 ## Single-Platform Scope
 
 The platforms in scope decide the lanes, the tools checked and the strategies that apply. Nothing outside the scope is planned, installed or booted.
@@ -177,6 +185,7 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 11. No `@latest` and no unpinned package name anywhere in the plan (`grep -n 'latest\|@playwright/mcp' <plan>` shows only `@playwright/mcp@0.0.83`, if Playwright is in the plan at all).
 12. Every suite's `Model:` is `sonnet` (`haiku` only for a flow-only rerun). Each `opus`, if any, names in the Orchestration model table the D-number that approved it, with the cost stated; none says "as in the previous run". `grep -n 'Model:\*\* opus' <plan>` lists exactly the suites those D-numbers name.
 13. If the project has Playwright tests (the predicate in Before Writing step 3) and web is in scope, the plan has one `playwright-test` suite with one scenario row per spec file, or the coverage table says why not.
+14. Every scenario that moves money or value has its suite's `**Spend:**` filled and a decision the user answered in a question of its own (`approved`, `approved (stop before the final step)`, `skipped (user)`, or `to confirm` if unanswered); `grep -n -i 'pay\|purchase\|transfer\|checkout\|swap\|mint\|withdraw' <plan>` shows no suite with `**Spend:** none` whose scenarios do.
 
 ## Handoff
 
@@ -203,6 +212,7 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 | `opus` on every suite because the last run used it, or "to be safe" | Workers run on `sonnet`; `opus` is the orchestrator's model. A suite on `opus` needs a D-number that states the ~2× cost |
 | A comparison suite described in prose ("compare the booking flow across platforms") | A scenario table with `S-0NN-NN` rows, like every other suite: the checker and the HTML page read the rows |
 | Suites listing only "test the booking flow" | Scenarios with ID, steps, expected result and technique |
+| A checkout, transfer or on-chain scenario with no `**Spend:**` field | The executor does not ask about money during the run, so what the plan does not declare and the user does not approve is never tested. Declare it, with cap, account and environment, and ask |
 | Silently dropping strategies because it is urgent | Coverage table: `deferred` with "time" as the reason |
 | Reading the vault from disk when the MCP fails | Ask; otherwise `Vault: none (MCP down)` |
 | Creating ClickUp tickets or lists while planning | Destination list is a `to confirm` decision; tickets come after verification at execution |
