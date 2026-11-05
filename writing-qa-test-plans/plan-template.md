@@ -18,7 +18,7 @@ Write the plan in the project's language (`{project_language}`); keep the headin
 - Web: <base URL or "none"> (environment: <staging | dev | production read-only>)
 - Backend environment URL the mobile builds point to: <https://api.staging.example.com>. Mobile reports put it in `**URL:**`, which ClickUp uses to tag the environment.
 **First screen text (health check):** iOS "<text>" · Android "<text>" · Web "<text>"
-**Sources:** Vault: <vault name + notes read, or `none` (reason)> · ClickUp: <list/tickets read, or `none` (reason)> · Project context: <`context/navigation-map.md`, `context/regression-flows.md`, `maestro/flows/`, or `none`>
+**Sources:** Vault: <vault name + notes read, or `none` (reason)> · ClickUp: <list/tickets read, or `none` (reason)> · Project context: <`context/navigation-map.md`, `context/regression-flows.md`, `maestro/flows/`, or `none`> · Baseline: <regression sources audited + change sources, see `## Baseline audit`, or `none` (reason)>
 **API:** <base URL · version · auth header, or "none">
 **Language:** <project language> · **Viewport scope (web):** <Desktop 1440×900 | Mobile web 375×667 | Both>
 
@@ -28,10 +28,11 @@ Write the plan in the project's language (`{project_language}`); keep the headin
 |---|---|---|---|
 | D1 | Platforms in scope: <iOS, Android, web, API, or all> (asked first) | user | approved |
 | D2 | User types covered: <admin (`ADMIN_EMAIL`), end user (`TEST_USER_EMAIL`), …; roles without an account named> | <user / vault / `.env.example`> | <approved / to confirm> |
-| D3 | <e.g. Two Android `adb` lanes: Pixel_8_API_34 on 5554 and 5556 (`--read-only`), Mac has 32 GB> | plan author | adopted by plan author |
-| D4 | <e.g. Workers run with `--permission-mode auto`> | <user / plan author> | <approved / adopted by plan author / to confirm> |
-| D5 | <e.g. Verified bugs are created in ClickUp list 9001 "Bugs"> | user | to confirm |
-| D6 | <e.g. S-007 pays an order with the sandbox card, max 50 USD, account `TEST_USER_EMAIL`; asked to the user in its own question while writing the plan> | user | <approved / approved (stop before the final step) / skipped (user) / to confirm> |
+| D3 | Existing regression: <baseline sources (files, ClickUp cases, vault notes) and change sources (tickets), or `none`> (asked first) | <user / files found> | <approved / to confirm> |
+| D4 | <e.g. Two Android `adb` lanes: Pixel_8_API_34 on 5554 and 5556 (`--read-only`), Mac has 32 GB> | plan author | adopted by plan author |
+| D5 | <e.g. Workers run with `--permission-mode auto`> | <user / plan author> | <approved / adopted by plan author / to confirm> |
+| D6 | <e.g. Verified bugs are created in ClickUp list 9001 "Bugs"> | user | to confirm |
+| D7 | <e.g. S-007 pays an order with the sandbox card, max 50 USD, account `TEST_USER_EMAIL`; asked to the user in its own question while writing the plan> | user | <approved / approved (stop before the final step) / skipped (user) / to confirm> |
 
 ## Strategy coverage (orchestrator-only section)
 
@@ -43,6 +44,10 @@ Every strategy from the catalog, with no omissions.
 | install-upgrade | not applicable | – | – | no previous build available |
 | performance-stability | deferred | P2 | – | time; emulator-only results |
 | … | … | … | … | … |
+
+## Baseline audit (orchestrator-only section)
+
+<Only when D3 names a baseline; otherwise delete this section. Tables and rules in `baseline-audit.md` (writing-qa-test-plans): Sources read, Flow classification, Missing regression (from sources and proposed), Open questions, Proposed updates to the regression set.>
 
 ## Global Constraints
 
@@ -59,7 +64,7 @@ Every strategy from the catalog, with no omissions.
 |---|---|---|---|---|---|---|---|
 | L1-ios | ios | iPhone 16 Pro (simulator) | iOS 18.2 | `<udid>` | `maestro-mcp` (installed) · or `axe` (D<n>, to confirm) | <.app path> | one worker at a time; one `maestro-mcp` lane per platform |
 | L2-android | android | Pixel_8_API_34 (emulator) | API 34 | `emulator-5554` (console 5554) | `adb` (no install) | <.apk path> | one worker at a time |
-| L2b-android | android | Pixel_8_API_34 (emulator, `--read-only`) or <second AVD> | API 34 | `emulator-5556` (console 5556) | `adb` (no install) | <.apk path> | one worker at a time; default from 16 GB (D3) |
+| L2b-android | android | Pixel_8_API_34 (emulator, `--read-only`) or <second AVD> | API 34 | `emulator-5556` (console 5556) | `adb` (no install) | <.apk path> | one worker at a time; default from 16 GB (D4) |
 | L3-web | web | Chrome (Claude in Chrome, the user's profile) | – | – | `chrome` (`--chrome`, no install) | <base URL> | one worker at a time; the only Chrome lane |
 | L4-api | api | none (Bash `curl`) | – | – | `http` | <API base URL · version> | one worker at a time; starts in wave 1 |
 | L5-e2e | web | none (the project's Playwright runner, headless) | – | – | `playwright-test` (no install) | <base URL of `playwright.config.*`> | one worker at a time; only when the project has Playwright; starts in wave 1 unless it shares an account with another lane |
