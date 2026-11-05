@@ -91,7 +91,7 @@ Stage B (`accepted`): every High or Medium bug has a verify verdict (CONFIRMED /
 
 **ClickUp** (or `**ClickUp:** none` plus the reason):
 - Source tickets: <ids>. The orchestrator fetches them fresh at execution and quotes them into `<suite>.clickup.md` for the packages.
-- Bug destination: list `<id>` (`<name>`), decision D<n> `<to confirm | approved>`. Only CONFIRMED bugs, after a duplicate search, filed as soon as they are confirmed. Through `/report-bugs-to-clickup <qa-report.md>` when qa-team-spacedev's skill is available; otherwise the orchestrator creates them with the same template after showing the preview table.
+- Bug destination: list `<id>` (`<name>`), decision D<n> `<to confirm | approved>`. Only CONFIRMED bugs, after a duplicate search, filed as soon as they are confirmed. Through `/report-bugs-to-clickup <qa-report.md>` when qa-team-spacedev's skill is available; otherwise the orchestrator creates them with the same template after showing the preview table. Assignee and extra list (a sprint or another list, or none): asked once, before the first ticket.
 
 **Closing steps:** cross-platform parity comparison · consolidated report `evidence/<app-slug>/QA-RUN-SUMMARY-<run-id>.md` · HTML results page `evidence/<app-slug>/QA-RUN-RESULTS-<run-id>.html` (`scripts/render-results.py`; required when ClickUp is not connected) · `context/regression-flows.md` "last successful run" updates, only with the user's OK · ClickUp (if approved) · vault sync (if any) · shut down only the devices this run booted, after asking.
 
