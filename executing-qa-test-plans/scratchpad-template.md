@@ -21,7 +21,7 @@ Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Orchestrator: orch-<N> (pane <i
 <Plan, summary, run dir (~/.cache/qa-runs/<run-id>), evidence root>
 <Verified versions: herdr, Claude Code (launch flags, `--chrome`), per lane driver: adb / Maestro CLI + MCP tools listed / AXe / Chrome extension connected / Playwright MCP (approved only), Java, Xcode runtimes, Android emulator. Install decisions and their status>
 <Context monitoring: ok (ctx NN%) · your model alias (D-number)>
-<Vault: name / none (reason) · ClickUp: source tickets, destination list / none (reason)>
+<Vault: name / none (reason) · ClickUp: source tickets, destination list / none (reason) · Baseline: regression sources and change sources audited / none (reason)>
 
 ## Lanes
 | Lane | Device | Device id | Booted by this run | Build installed | Current suite | Pane / agent |

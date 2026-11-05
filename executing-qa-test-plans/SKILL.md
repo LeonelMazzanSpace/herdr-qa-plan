@@ -43,57 +43,44 @@ One orchestrator session runs a plan written with `/writing-qa-test-plans`. It b
 
 ## Asking the User
 
-The person answering may be a QA analyst or a PM, not the person who wrote the plan. Every message and question you show them is **in English** and has this shape:
+The person answering may be a QA analyst or a PM, not the person who wrote the plan. Every message is in the **conversation language** (the first question of the preflight) and is **short**:
 
-1. **Status first, as a short list:** what is ready ✅ and what is missing ❌, one line each, each saying what it means for the run ("❌ Maestro is not installed: it is the tool that drives the app on the simulator, so no mobile test can run without it").
-2. **Routine decisions you took yourself** go after the status, under "Already decided (no answer needed)", each in plain words. They are never asked.
-3. **One question per decision.** The question says what is being decided and why it comes up now, in one or two plain sentences.
-4. **Each option is a complete answer:**
-   - the label says the action ("Yes, install it", "One iPhone only");
-   - the description says what happens if it is chosen: what you will do next, the cost (time, memory, money) and the risk. It also says what is left out, when something is.
-5. **Technical words get their meaning inline,** in parentheses, the first time:
-   - lane → one test device;
-   - permission mode → how freely workers may run commands without asking you;
-   - acceptance source → where the acceptance criteria come from;
-   - dispatch → launch the workers.
-6. **Decision IDs go last,** in parentheses, after the plain text ("Test on one iPhone only (D9)"). An option label is never only an ID.
-7. **Multi-select only for independent yes/no items,** and each item is a full sentence that makes sense on its own.
+1. **Status first:** one ✅ line for everything ready, then one line per item that needs attention (❌), each saying what it blocks.
+2. **Routine decisions you took:** one line, "Already decided: …". Never asked.
+3. **One question per decision,** with one sentence on why it comes up now.
+4. **Each option:** an action label ("Yes, install it", "One iPhone only") plus one line with what happens and its cost.
+5. **A technical word** gets 2–4 plain words in parentheses the first time ("lane (one test device)", "dispatch (launch the workers)").
+6. **Decision IDs go last,** in parentheses ("One iPhone only (D9)"). An option label is never only an ID.
+7. **Multi-select only for independent yes/no items.**
+8. **No recap, no restating the plan, no pleasantries.** Progress updates are one line. Results and details live in files (scratchpad, summary, HTML page): link them, never paste them.
 
-Example: the same preflight, asked this way.
+Example: a preflight, asked this way.
 
-> **Status before starting**
-> - ✅ iPhone 16 Pro simulator is booted and ready
-> - ❌ Maestro is not installed: it is the tool that drives the app on the simulator, so no mobile test can run without it
-> - ❌ No app builds (the .app for the iOS simulator, the .apk for Android): there is nothing to install on the devices
-> - ❌ No Android emulator is running (I can boot Pixel_8_API_34 myself)
+> ✅ iPhone 16 Pro simulator ready
+> ❌ Maestro not installed: no iOS test can run
+> ❌ No app builds (.app / .apk): nothing to install
 >
-> **Already decided (no answer needed):** regression flows not run in over 30 days are listed in the summary as an observation, not as a bug (D10).
+> Already decided: flows not run in 30+ days are an observation, not a bug (D10).
 >
-> **Install Maestro?**
-> - *Yes, install it with brew (Recommended)* — Takes about 2 minutes and stays installed on your Mac for every project. Needs Java 17+.
-> - *No, web only for now* — iOS and Android tests do not run in this run.
+> **Install Maestro?** (the tool that drives the simulator)
+> - *Yes, with brew (Recommended)* — ~2 min, needs Java 17+.
+> - *No, web only* — iOS and Android do not run.
 >
 > **Who builds the app?**
-> - *You build it now (Recommended)* — I compile the simulator .app and the .apk from the Expo project. Takes 10–20 minutes and changes no app code.
-> - *I'll provide the files* — I wait for the paths to both files before launching the workers.
+> - *You, now (Recommended)* — 10–20 min, no code changes.
+> - *I'll give you the files* — workers wait for the paths.
 >
-> **How freely may workers run commands?** Each worker launches the app, taps the screen and takes screenshots through simulator commands.
-> - *Let them run on their own (Recommended)* — No approval needed for each command; a safety check blocks risky ones. You can watch any pane. (`auto` mode, D5)
-> - *Ask me at every step* — More control, but you approve every command in every pane, and the run is much slower and stops while you are away. (`acceptEdits` mode)
->
-> **Where do the acceptance criteria come from?** (the rules that say what the app must do for a test to pass) ClickUp is off, so the plan proposes the vault notes "requisitos/reservas".
-> - *From the vault notes (Recommended)* — I re-read them at start and give each suite the lines it needs. If the vault is unreachable, those suites wait and the rest run. (D8)
-> - *Only what the plan says* — Faster, but business rules that exist only in the vault are not checked.
->
-> **How many phones do I test on?**
-> - *One iPhone only (Recommended)* — iOS suites run one after another. Uses less memory, takes longer overall. (D9)
-> - *Add a second iPhone* — Faster, but adds 1–2 GB of RAM and a few minutes of boot time.
+> **How many iPhones?**
+> - *One (Recommended)* — less RAM, slower overall. (D9)
+> - *Two* — faster, +1–2 GB RAM.
 
 ## Preflight (once per run)
 
 1. `test "$HERDR_ENV" = 1`. If it fails, ask the user to start the orchestrator inside a Herdr pane.
-2. Read `QA-SCRATCHPAD.md` (create it from `scratchpad-template.md` if missing), the plan and its summary. Then ask, in **one message** shaped as in "Asking the User", before anything is booted:
-   - **Scope of this run, always asked first, even when the plan is clear.** "What do we test in this run?" with one option per platform the plan covers (iOS, Android, Web, API) plus "All of them (as planned)" as the recommended default. Multi-select. A platform left out marks its lanes `skipped (user)` in the scratchpad; nothing of that platform is checked, booted or installed, and the summary lists it as not run by decision.
+2. **Conversation language, the very first question, alone.** Ask in one line, bilingual: "Language for this conversation? / ¿En qué idioma conversamos?" with English · Español (plus free text), the plan header's `Conversation language` first as the recommended option. Every later message is in that language. Record it as a D-number (a relief reuses it, never asks).
+
+   Then read `QA-SCRATCHPAD.md` (create it from `scratchpad-template.md` if missing), the plan and its summary, and ask, in **one message** shaped as in "Asking the User", before anything is booted:
+   - **Scope of this run, always asked, even when the plan is clear.** "What do we test in this run?" with one option per platform the plan covers (iOS, Android, Web, API) plus "All of them (as planned)" as the recommended default. Multi-select. A platform left out marks its lanes `skipped (user)` in the scratchpad; nothing of that platform is checked, booted or installed, and the summary lists it as not run by decision.
    - **User types and accounts.** Show the roles and accounts from the plan's `## Test data and accounts` as status lines ("✅ End user: `TEST_USER_EMAIL`", "❌ Admin: no account in the plan"). If the plan records that a role exists without an account, or if the app has an admin area or several user types and the plan names only one role, ask: "Which user types should this run cover?" with the roles as multi-select items and the cost of each ("needs an account: the `.env` variable name"). Record the answer as a D-number. Never ask for a credential value, only the variable name.
    - Every `to confirm` decision that a lane needs: permission mode, extra devices, Maestro / AXe / Playwright installs, production access.
 3. **Tooling.** Check each and record the result in the scratchpad:
@@ -119,7 +106,7 @@ Example: the same preflight, asked this way.
    - **Vault:** only for suites whose header names notes. Confirm the vault MCP is connected, reread the notes and quote the needed lines into `<run-dir>/<suite>.vault.md`.
    - **ClickUp mode, decided once, here.** ClickUp is `on` only if the plan names ClickUp tickets or a destination list, or the user gives one in this run.
      - The plan says `ClickUp: none (user)`: the answer is already given, so `off` without asking.
-     - The plan names nothing and the user did not mention ClickUp: ask once, in the preflight questions: "¿Usamos ClickUp en esta corrida? Pasame la lista o los tickets."
+     - The plan names nothing and the user did not mention ClickUp: ask once, in the preflight questions: "Do we use ClickUp in this run? Give me the list or the tickets."
      - No list or tickets given: `off`. Record it as a D-number and write `ClickUp: off (user)` in the scratchpad.
 
      With `off`, no ClickUp tool is called for the rest of the run, even if the MCP is connected: no ticket reads, no record searches, no ticket creation, no further questions. **The deliverable is the HTML results page** (Closing step 4).
@@ -328,9 +315,10 @@ When a **confirmed** bug reveals a pattern (an unlabeled icon button, keyboard c
    - For each `acceptance` suite, ask: add it as a new flow, update an existing flow, or skip.
      - **Add:** ask for a short flow name. Append `## Flow: <name>` with `**Steps:**` taken from what was actually exercised, `**Test data:**`, and `**Last successful run:**` (today on PASS, otherwise `never run`).
      - **Update:** ask which `## Flow:` entry. Edit only what the user says changed (a step, a test-data value, a URL), never rewrite the entry. Set `**Last successful run:**` to today on PASS. On FAIL, leave the existing date untouched: never overwrite a real date with `never run`.
+   - **A plan with `## Baseline audit`:** show its `Proposed updates to the regression set` with this run's outcome per flow: a `changed` flow or an `add` row whose scenario passed end-to-end is ready to write; one that failed or was not run stays a proposal. Ask per source file which updates to apply (retire a `deprecated` flow, rewrite a `changed` one, add an `add` row as a new flow, the "Last successful run" date per flow id), and edit only that file, in its own format. Sources outside the QA project (another repo, ClickUp test cases, the vault) are never written by the run: list their updates in the summary for the user to apply.
 6. **Vault** (if any): offer the sync (`updating-typed-knowledge-vaults` for typed vaults). Write only with the user's yes.
 7. **Data and devices:** list the records each lane created in its data range and every money movement the run reports (what, amount, reference), so the user can recover or reconcile it. Ask before deleting any. Ask before shutting down the devices this run booted. Remove `<run-dir>/profile-*`, `<run-dir>/secrets-*.env` and the Playwright lanes' `mcp-<lane>.json` now, without asking: they hold logged-in sessions and credential values and belong to no one after the run.
-8. Close only the panes this run created, except your own. Update the scratchpad and the daily log (`.claude/daily-update.md`, one line per milestone, if the user's or project's instructions use one). Then give the user, in plain words: the result, the checks run, bugs by severity, coverage gaps, and the live resources still running.
+8. Close only the panes this run created, except your own. Update the scratchpad and the daily log (`.claude/daily-update.md`, one line per milestone, if the user's or project's instructions use one). Then give the user, in plain words and at most 8 lines: the go / no-go, bugs by severity, coverage gaps, the live resources still running, and the path of the summary or HTML page (the details are there, not in the chat).
 
 ## Handing Off to a Relief Orchestrator
 
@@ -355,14 +343,14 @@ At 70% context you hand the run to a fresh session, `orch-<N>`, that resumes fro
 3. **Write the hand-off entry** from `handoff-template.md` into the scratchpad, from a fresh `herdr agent list`, `adb devices`, `xcrun simctl list devices booted`, `ls <run-dir>/*.question.md` and `herdr pane layout`, never from memory: relief pane and effective model; live agents with pane, state, lane, device id, timebox end and the report each will write; verify queue per lane; open worker questions; ClickUp bugs still to file; the exact next action. Then write the relief prompt from the same template to `<run-dir>/handoff-orch-<N>.md`.
 4. **Prompt it once**, no `--wait`: `herdr agent prompt orch-<N> "Read <run-dir>/handoff-orch-<N>.md and execute it exactly."` On `agent_prompt_stalled`, handle it as in Lane Loop step 5.
 5. **Wait for its confirmation**, bounded and in the background (a pure-bash loop, 10 minutes, no `timeout` binary needed): `bash -c 'for i in $(seq 1 40); do grep -q "Resumed by orch-<N>" "<QA root>/QA-SCRATCHPAD.md" && exit 0; sleep 15; done; exit 1'`. Your turn ends there and Herdr shows you `idle`; that is expected. Until that line exists, the run is still yours: if a worker reports meanwhile, re-read the scratchpad and add one line under the entry (`s005 reported <report path> at <time>`) and nothing else; no acceptance, dispatch or verdict. If the loop expires, read `herdr agent read orch-<N>`: a permission prompt goes to the user, never answered by you; still `working` → wait once more; dead or stuck → record it, `herdr pane close` its pane, and start `orch-<N+1>` from step 2.
-6. **Leave.** When the loop returns with the line present, say one line to the user, in English (the run now belongs to `orch-<N>`), and stop. Write nothing more in the scratchpad and run nothing more: no dispatch, acceptance, ticket or prompt. The relief closes your pane and announces itself; you cannot run `/exit` on yourself. If the relief closed your pane before the loop returned, nothing is lost.
+6. **Leave.** When the loop returns with the line present, say one line to the user, in the conversation language (the run now belongs to `orch-<N>`), and stop. Write nothing more in the scratchpad and run nothing more: no dispatch, acceptance, ticket or prompt. The relief closes your pane and announces itself; you cannot run `/exit` on yourself. If the relief closed your pane before the loop returned, nothing is lost.
 
 ### As the relief
 
 1. Preflight as a resume: `HERDR_ENV`, `herdr --version`, `claude --help` for the launch flags, your own context reading, `claude mcp list` for the vault and ClickUp MCPs (only if the run uses them). Skip every question of preflight step 2, the installs, the device boots and health checks, the MCP configs, the cost estimate and `caffeinate`: scope, accounts, installs, permission mode, ClickUp mode and cap are D-numbers in the scratchpad; reuse them and do not create new ones. The devices and the run dir are already there.
 2. Read the whole scratchpad (D-numbers, Lanes, Suites, Verification batches, Bugs, ClickUp), the plan and its summary; the last hand-off entry is your starting point. Append `Resumed by orch-<N> at <time>` to Recent activity. From that line, you are the only writer; only then update the header with your context reading and `Context monitoring: ok`.
 3. Reconcile `herdr agent list`, `adb devices`, `xcrun simctl list devices booted`, the run dir and `ls <run-dir>/*.question.md` with the entry. A difference (a report already present, an agent gone, a device down, a question with no answer) is a line in Recent activity now and a step of the Lane Loop later, not a reason to act here. Re-arm one background `herdr agent wait <name> --timeout <ms until its timebox ends>` per agent whose row says `working`; a wait that times out while the worker is still `working` is the "`--wait` timed out" row of When a Worker Stops or Breaks. File the ClickUp bugs the entry lists, with the Closing step 3 rules.
-4. `herdr agent wait <outgoing name> --timeout 600000` until it is idle, then `herdr pane close <its pane>`. Closing the previous orchestrator's pane is the one exception to "close only panes you created"; never close it while it is `working` (wait again). Then `herdr agent focus orch-<N>` and tell the user, in English, in one line that you own the run in this pane.
+4. `herdr agent wait <outgoing name> --timeout 600000` until it is idle, then `herdr pane close <its pane>`. Closing the previous orchestrator's pane is the one exception to "close only panes you created"; never close it while it is `working` (wait again). Then `herdr agent focus orch-<N>` and tell the user, in the conversation language (its D-number), in one line that you own the run in this pane.
 5. Continue the Lane Loop from "Next action". Hand off to `orch-<N+1>` the same way at 70%.
 
 ## Status and Resume
@@ -407,7 +395,8 @@ These thoughts mean stop:
 | "The report looks complete, I'll skip the script" | `check-report.py` finds the missing scenario or the wrong sum you will not. Run it; read the FAIL screenshots yourself |
 | "This smoke should also audit accessibility, it's thorough" | It carries only the sections its package lists. Coverage is per platform: the accessibility suite (or the carrier's fallback) owns § 6 |
 | "Playwright MCP is already in `claude mcp list`, so it's installed" | Workers get only `mcp-<lane>.json` with the pinned `@playwright/mcp@0.0.83`. A user-level registration, at `@latest` or any version, is not the run's driver |
-| "The user wants everything tested, no need to ask about platforms" | Scope is always the first question of a run: iOS, Android, web, API, or all, as the plan says. One message, one answer |
+| "The user wants everything tested, no need to ask about platforms" | Scope is always asked at the start of a run, right after the language: iOS, Android, web, API, or all, as the plan says. One message, one answer |
+| "I'll explain each option in detail so the user can decide" | One line per option: what happens and its cost. Details are in the plan and the scratchpad |
 | "The user said no questions, so file every bug now" | The instruction approves filing, not unverified bugs |
 | "Maestro is missing, I'll install it quickly" | Ask first. Web and Android lanes can run meanwhile |
 | "The plan has no approval for this payment, but it is only a sandbox / the user is waiting" | Money is approved in the plan, by the user, before the run. Without an `approved` decision the scenario is `not run (money not approved)`: never ask mid-run and never decide it yourself |

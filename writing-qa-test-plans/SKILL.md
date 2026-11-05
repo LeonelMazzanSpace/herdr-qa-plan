@@ -30,19 +30,22 @@ Not for: running tests now (the user runs `/executing-qa-test-plans` with an exi
 
 ## Before Writing
 
-**How every question is shaped.** The person answering may be a QA analyst or a PM, so each question follows this recipe, in English:
-- Show the status first, as a ✅/❌ list, each line saying what it means for the plan.
-- List the routine decisions you took yourself under "Already decided (no answer needed)"; never ask them.
-- Ask one decision per question, saying what is decided and why it comes up now.
-- Each option says what happens if chosen, its cost (time, memory) and what is left out.
-- Explain technical words inline the first time ("lane (one test device)", "acceptance source (where the acceptance criteria come from)").
-- Decision IDs go last in parentheses ("Test on one iPhone only (D9)"), never alone as a label.
+**Conversation language: the very first question, alone.** Before anything else, ask in one line, bilingual: "Language for this conversation? / ¿En qué idioma conversamos?" with the options English · Español (plus free text). Every later message is in that language. It is not the project language (the language of the plan and reports, a session input). Record it in the plan header and the scratchpad.
+
+**How every message is shaped: short.** The person answering may be a QA analyst or a PM. Each message follows this recipe:
+- Status first: one ✅ line for everything ready, then one line per item that needs attention (❌).
+- Routine decisions you took: one line, "Already decided: …". Never asked.
+- One decision per question, with one sentence on why it comes up now.
+- Each option: an action label plus one line with what happens and its cost.
+- A technical word gets 2–4 plain words in parentheses the first time ("lane (one test device)").
+- Decision IDs go last in parentheses ("One iPhone only (D9)"), never alone as a label.
+- No recap of what was already said, no restating of the plan, no closing pleasantries. Progress updates are one line. Details live in files (plan, summary): link them, never paste them.
 
 The executor's `SKILL.md` § "Asking the User" has a worked example.
 
 Keep blocking questions to one message, each with a proposed default. While you wait for answers, keep doing the checks that do not depend on them. If the user is in a hurry, draft the whole plan with your proposed defaults, each marked `to confirm`. The user corrects the draft instead of answering a questionnaire.
 
-**Three questions are always asked, in the first message, before any check:**
+**Once the language is answered, three questions are always asked, together in one message, before any check:**
 
 - **Platforms.** "What do we test: iOS, Android, web, API, or all of them?" Multi-select, one item per platform, even when the user already named some: the answer is the scope of the plan and is recorded as D1. Nothing outside it is planned, checked, booted or installed (§ Single-Platform Scope).
 - **User types.** First look for them yourself: the vault (if its MCP is connected: notes on roles, permissions, organisations, test accounts), `context/navigation-map.md` (role-dependent sections, tenants), `.env.example` (account variable names such as `ADMIN_EMAIL`, `TEST_USER_EMAIL`). Show what you found as status lines ("✅ Found in the vault: roles admin, operator, end user; accounts `ADMIN_EMAIL`, `TEST_USER_EMAIL`"). Then ask only what is missing: "Which user types does the app have, and which of them should this plan cover?" with the roles you found as items to confirm plus the option to add others, and, per role, the `.env` variable name of its account (never the value). If nothing was found anywhere, ask the open question. A role with no account is still planned: its suites carry the account as a `to confirm` decision, and `multi-tenant-access` / role scenarios are `deferred` with that reason until it exists.
@@ -51,7 +54,7 @@ Keep blocking questions to one message, each with a proposed default. While you 
 1. **Roles.** You are the plan author and future orchestrator: the only writer of the plan, the scratchpad (`QA-SCRATCHPAD.md` at the QA project root, from `scratchpad-template.md` in executing-qa-test-plans), and the vault.
 2. **Session inputs** (ask once, carry forward):
    - project language (Spanish / English / bilingual);
-   - platforms in scope: the answer to the first question above;
+   - platforms in scope: the answer to the platforms question above;
    - builds: the `.app` simulator build and the `.apk` paths, or how they get installed (Expo dev client, store build), plus the bundle id / package;
    - web base URL, environment, and **web viewport scope**: Desktop 1440×900, Mobile web 375×667, or Both. Never assume Both;
    - API, if in scope: base URL, version (if versioned), the auth header, and the key's `.env` variable name per account;
@@ -167,7 +170,7 @@ From `strategy-catalog.md` § Model per suite: every suite and every verify work
 
 ## Summary File
 
-Next to the plan, write `<plan-name>-summary.md` in the user's language, in plain words for non-technical readers: what will be tested, on which devices, what is deferred and why, and what the team needs to provide (builds, accounts, Maestro install). Link the plan from it.
+Next to the plan, write `<plan-name>-summary.md` in the user's language, in plain words for non-technical readers: what will be tested, on which devices, what is deferred and why, and what the team needs to provide (builds, accounts, Maestro install). With a baseline audit, also how many existing flows still hold, change, are retired or need an answer, and how many scenarios were added (from tickets and proposed). Link the plan from it.
 
 ## Self-Review
 
@@ -184,7 +187,7 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
    - **per platform in scope**, `negative-validation`, `text-quality`, `accessibility` and `ui-visual` each have a suite, or a `deferred` / `not applicable` row in the coverage table that names the platform; a platform left without one is listed with the carrier suite that takes the fallback and the extra minutes added to its timebox;
    - tenants and roles found in the context files or named in the user-types answer are covered by `multi-tenant-access` and role scenarios, or deferred with the missing accounts named;
    - the web viewport scope is stated.
-10. The three first questions were asked and answered: platforms (D1), user types with their account variable names (D2), and the existing regression with its change sources (D3), each recorded as a decision with its source (user / vault / `.env.example` / files found).
+10. The conversation language was asked first and is in the plan header. The three questions after it were asked and answered: platforms (D1), user types with their account variable names (D2), and the existing regression with its change sources (D3), each recorded as a decision with its source (user / vault / `.env.example` / files found).
 11. No `@latest` and no unpinned package name anywhere in the plan (`grep -n 'latest\|@playwright/mcp' <plan>` shows only `@playwright/mcp@0.0.83`, if Playwright is in the plan at all).
 12. Every suite's `Model:` is `sonnet` (`haiku` only for a flow-only rerun). Each `opus`, if any, names in the Orchestration model table the D-number that approved it, with the cost stated; none says "as in the previous run". `grep -n 'Model:\*\* opus' <plan>` lists exactly the suites those D-numbers name.
 13. If the project has Playwright tests (the predicate in Before Writing step 3) and web is in scope, the plan has one `playwright-test` suite with one scenario row per spec file, or the coverage table says why not.
@@ -194,7 +197,7 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 ## Handoff
 
 1. Save to `qa-plans/YYYY-MM-DD-<name>.md` at the QA project root, unless the project says otherwise, and the summary next to it.
-2. Create or update `QA-SCRATCHPAD.md`: links, sources, decisions, suites table with status `planned`, tooling found.
+2. Create or update `QA-SCRATCHPAD.md`: links, sources (baseline and change sources included), decisions, suites table with status `planned`, tooling found.
 3. Ask the user to review the plan and confirm every `to confirm` decision.
 4. Stop. Execution starts only when the user runs `/executing-qa-test-plans <plan path>`: tell them that command in one line, and never start executing on your own.
 
@@ -203,7 +206,8 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 | Mistake | Fix |
 |---|---|
 | Two workers "on iOS" sharing the one booted simulator | One lane per device. More parallelism needs more devices: Android gets two `adb` lanes by default, iOS a second lane when AXe is installed, anything else as a decision |
-| Starting the checks before asking what to test | Platforms, user types and existing regression are the first message, always. The answer is the scope |
+| Starting the checks before asking what to test | Conversation language first, alone; then platforms, user types and existing regression in one message. The answer is the scope |
+| A question with a paragraph per option, a status list of everything that is fine, a recap of the previous message | One ✅ line for what is ready, one line per problem, one line per option. Details go in the plan and the summary |
 | Planning a redesigned area from zero when it already has regression flows, or copying every old flow unchanged | Baseline audit first: each flow `valid` / `changed` / `deprecated` / `unclear`, with the change ticket that decides it |
 | A flow marked `deprecated` because the redesign "probably" removed it | `deprecated` only when a change source says so; otherwise `unclear` with a `to confirm` decision |
 | Testing only what the old regression and the tickets list, so the gaps of the regression set stay invisible | Coverage review over every dimension (entry points, states, data, roles, persistence, cross-flow, viewports, the change itself); each gap a `proposed` row with its risk and priority |

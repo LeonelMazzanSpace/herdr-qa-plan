@@ -38,6 +38,6 @@ Do, in this order:
 2. Read <QA project root>/QA-SCRATCHPAD.md in full; your starting point is the last "Hand-off to orch-<N>" entry. Then read the plan <plan path> and its summary. Do not ask the preflight questions again, boot or reinstall devices, or repeat the cost estimate: scope, accounts, installs, permission mode and ClickUp mode are D-numbers in the scratchpad.
 3. Append a `Resumed by orch-<N> at <the current time>` line to the scratchpad's "Recent activity". From that line, you are the only writer.
 4. Reconcile with `herdr agent list`, `adb devices`, `xcrun simctl list devices booted` and `ls <run-dir>/*.question.md`; re-arm one background wait per `working` agent in the entry; file the pending ClickUp bugs, if any.
-5. Wait until orch-<N-1> is idle (never close it while working), then close its pane: `herdr pane close <pane id>`. Focus yourself and tell the user, in English, in one line that you own the run.
+5. Wait until orch-<N-1> is idle (never close it while working), then close its pane: `herdr pane close <pane id>`. Focus yourself and tell the user, in the conversation language (its D-number), in one line that you own the run.
 6. Continue the Lane Loop from "Next action". Keep checking your own context; at 70%, hand off to orch-<N+1> the same way.
 ```
