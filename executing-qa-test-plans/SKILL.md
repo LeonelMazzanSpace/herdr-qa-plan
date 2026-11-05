@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Overview
 
-**Manual only.** This skill has `disable-model-invocation: true`: it runs only when the user types `/executing-qa-test-plans` (optionally with the plan path, or "status" / "continuá" for a run in progress). It never starts on its own. The one session you did not type yourself is a relief orchestrator: the run is yours, and its orchestrator hands it over by pointing the relief at this file (Handing Off to a Relief Orchestrator).
+**Manual only.** This skill has `disable-model-invocation: true`: it runs only when the user types `/executing-qa-test-plans` (optionally with the plan path, or "status" / "continue" for a run in progress). It never starts on its own. The one session you did not type yourself is a relief orchestrator: the run is yours, and its orchestrator hands it over by pointing the relief at this file (Handing Off to a Relief Orchestrator).
 
 One orchestrator session runs a plan written with `/writing-qa-test-plans`. It boots one device per lane, gives each suite to a fresh Claude worker in its own Herdr pane, and checks each result with `check-report.py` plus its own eyes on the FAIL screenshots. A lane moves to its next suite as soon as those checks pass; every High or Medium bug is re-reproduced later by one independent verify worker per lane before it counts. Finally it consolidates one report for the run.
 
@@ -254,12 +254,12 @@ Acceptance has two stages. Stage A frees the lane; stage B confirms the bugs.
 
 | User says | Action |
 |---|---|
-| "Subí los bugs a ClickUp directo, no me preguntes" | This explicit instruction approves ticket creation. Record it as a D-number and set the plan's destination decision to `approved (user, <date>)`. The preview table is then shown as information, not as a question. Still: only `confirmed` bugs, a duplicate search first, read each ticket back. If the plan records no list, you cannot guess one: ask "¿en qué lista?" once, at the first confirmed bug. If the user gives none, ClickUp mode becomes `off` and the run ends with the HTML page only. The demo or deadline does not turn unverified bugs into confirmed ones |
-| A deadline ("tengo la demo en una hora") | Estimate what fits. Propose a trimmed order in one line: smokes and their verification first, then P0 suites, the rest deferred. Record it as a D-number and start without waiting. Verification of High bugs is never trimmed silently; if it does not fit, say which bugs stay unverified |
-| "Saltá la verificación" | Allowed. Record the waiver. Suites become `accepted (verification waived)` and their bugs stay `reported (unverified)`. Bugs filed anyway carry "unverified" in the ticket title |
-| "Más rápido, usá más terminales" | Parallelism is lanes, not panes. Offer extra devices (RAM permitting, `devices-and-tools.md` § Resource budget) as a decision. Two workers never share a device |
-| "Pará todo" | Stop dispatching and prompting. Send `esc` to working agents. Keep panes, devices and sessions. Write the scratchpad, give a status, then wait |
-| "Apagá los simuladores" / cleanup | Shut down only devices booted by this run. Never `erase`, wipe or delete AVDs or simulators unless asked by name |
+| "File the bugs in ClickUp directly, don't ask me" | This explicit instruction approves ticket creation. Record it as a D-number and set the plan's destination decision to `approved (user, <date>)`. The preview table is then shown as information, not as a question. Still: only `confirmed` bugs, a duplicate search first, read each ticket back. If the plan records no list, you cannot guess one: ask "which list?" once, at the first confirmed bug. If the user gives none, ClickUp mode becomes `off` and the run ends with the HTML page only. The demo or deadline does not turn unverified bugs into confirmed ones |
+| A deadline ("I have the demo in an hour") | Estimate what fits. Propose a trimmed order in one line: smokes and their verification first, then P0 suites, the rest deferred. Record it as a D-number and start without waiting. Verification of High bugs is never trimmed silently; if it does not fit, say which bugs stay unverified |
+| "Skip the verification" | Allowed. Record the waiver. Suites become `accepted (verification waived)` and their bugs stay `reported (unverified)`. Bugs filed anyway carry "unverified" in the ticket title |
+| "Faster, use more terminals" | Parallelism is lanes, not panes. Offer extra devices (RAM permitting, `devices-and-tools.md` § Resource budget) as a decision. Two workers never share a device |
+| "Stop everything" | Stop dispatching and prompting. Send `esc` to working agents. Keep panes, devices and sessions. Write the scratchpad, give a status, then wait |
+| "Shut down the simulators" / cleanup | Shut down only devices booted by this run. Never `erase`, wipe or delete AVDs or simulators unless asked by name |
 
 ## Learning Across Suites
 
@@ -267,7 +267,7 @@ When a **confirmed** bug reveals a pattern (an unlabeled icon button, keyboard c
 
 ## Closing the Run
 
-0. **Nothing pending.** Every lane's findings file is empty (its last verify batch ran and its verdicts are applied), or the user waived verification ("Saltá la verificación"). Suites still `accepted (pending verification)` at this point are a blocker, not a closing step: dispatch the missing verify workers first. Then list, per platform, the cross-cutting sections of the standard (§ 4, 5, 6, 8, 9) that ran, which suite carried each, and the ones no suite carried because the platform's suites were skipped or blocked: that is the coverage statement of the summary.
+0. **Nothing pending.** Every lane's findings file is empty (its last verify batch ran and its verdicts are applied), or the user waived verification ("Skip the verification"). Suites still `accepted (pending verification)` at this point are a blocker, not a closing step: dispatch the missing verify workers first. Then list, per platform, the cross-cutting sections of the standard (§ 4, 5, 6, 8, 9) that ran, which suite carried each, and the ones no suite carried because the platform's suites were skipped or blocked: that is the coverage statement of the summary.
 1. **Cross-platform parity:** compare the same flows across the iOS, Android and web reports, covering outcomes, copy and behaviour. Differences become findings in the summary.
 2. **Consolidated report:** `evidence/<app-slug>/QA-RUN-SUMMARY-<run-id>.md` in the project language, containing:
    - `**Overall Score:** NN/100`: the mean of the suite scores, with its status;
@@ -355,7 +355,7 @@ At 70% context you hand the run to a fresh session, `orch-<N>`, that resumes fro
 
 ## Status and Resume
 
-For "status", "qué falta" or "continuá":
+For "status", "what's left" or "continue":
 1. Start from the scratchpad. If its last hand-off entry has no matching `Resumed by` line, the relief never took over: the run is yours, continue from the entry.
 2. Verify it against `herdr agent list`, `xcrun simctl list devices booted`, `adb devices` and the run dir. A recorded status does not prove a process is alive.
 3. Answer with progress per lane, bugs so far, blockers and the next action.
