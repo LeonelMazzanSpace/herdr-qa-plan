@@ -193,10 +193,15 @@ if [ "$ROLE" = test ]; then
   if ! is_none "$TICKETS" && [ -z "$CLICKUP" ]; then
     die "suite lists ClickUp tickets ($TICKETS): pass --clickup-excerpts"
   fi
-  if ! is_none "$SPEND" && { [ -z "$NOTES" ] || ! grep -q 'Money movement (D' "$NOTES"; }; then
-    die "suite moves money ($SPEND): pass --notes with a 'Money movement (D<n>)' block saying what the user approved, or that it is not approved"
-  fi
 fi
+# Every suite listed (a verify package lists several) that moves money needs the block, for both roles:
+# a verify worker re-runs the failing steps, so it can spend as much as a test worker.
+for s in "$@"; do
+  sp=$(field_of Spend "$(section "Suite $s:" 3)")
+  if ! is_none "$sp" && { [ -z "$NOTES" ] || ! grep -q 'Money movement (D' "$NOTES"; }; then
+    die "suite $s moves money ($sp): pass --notes with a 'Money movement (D<n>)' block saying what the user approved, or that it is not approved"
+  fi
+done
 
 # --- Which sections of the evaluation standard this package carries ---------
 PLAN_SUITES=$(plan_suites)
