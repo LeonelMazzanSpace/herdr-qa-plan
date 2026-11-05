@@ -52,7 +52,7 @@ Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Orchestrator: orch-<N> (pane <i
 <Notes read; updates queued or done>
 
 ## ClickUp
-<Tickets fetched (ids, time); destination decision; tickets created and read back; queued if the MCP failed>
+<Tickets fetched (ids, time); destination decision; assignee and extra list (sprint or other, or none) with their D-number; tickets created, associated and read back; association failures; queued if the MCP failed>
 
 ## Next steps and recovery
 <Immediate sequence; live agents and panes; booted devices; how to resume: read this file + the plan, `herdr agent list`, `xcrun simctl list devices booted`, `adb devices`, reports in the run dir>

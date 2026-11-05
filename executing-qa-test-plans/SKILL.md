@@ -280,17 +280,26 @@ When a **confirmed** bug reveals a pattern (an unlabeled icon button, keyboard c
    - the strategies deferred in the plan, and the coverage gaps;
    - a plain-language go / no-go note under the exact heading `## Go / no-go` (the HTML page reads it).
 3. **ClickUp:** only with ClickUp mode `on`, the destination decision `approved`, and the MCP connected. With mode `off`, skip this step entirely.
-   - When the user wants to choose list, sprint and assignee themselves, use `/report-bugs-to-clickup <qa-report.md>` per suite, if the qa-team-spacedev skill is available. It asks for those every run.
+   - When the user prefers it, use `/report-bugs-to-clickup <qa-report.md>` per suite, if the qa-team-spacedev skill is available. It asks for the lists and the assignee every run, but leaves the sprint association to the user, by hand: say so.
    - Otherwise create the tickets yourself with the team template, one `clickup_create_task` per bug:
      - **Title:** `[<Bug ID>] <brief description>`.
      - **Description:** `Precondition:` · `Steps to reproduce:` (Step 01, 02, …) · `Actual result:` · `Expected result:` · `Additional information:`, with the evidence as `![<file>](<file>)` and `Original ID | Severity | Reporter | Date | Related tickets`. Add device, OS and run id to Precondition.
      - **Tags:** the environment (dev / staging / production, from the report's `**URL:**`) plus the platform (`mobile-ios` / `mobile-android` / `web` / `api`).
      - **Attachments:** the evidence screenshot.
 
-     Ask once per run for the bugs list, the sprint list and the assignee. If the user said not to be asked: no assignee, no sprint, and say so in the final summary. Show the preview table before creating; when the user said not to be asked, it is information, not a question. If a create call fails, record it and continue with the next one.
+     **Before the first ticket, ask once per run, in one message:**
+     - the bugs list, only if the plan names none;
+     - the assignee, resolved with `clickup_resolve_assignees`;
+     - "Do I also add them to a sprint or another list? Give me the list, or say no."
+
+     Record the answers as one D-number in the scratchpad's ClickUp section; a relief orchestrator reuses it and does not ask again. If the user said not to be asked: no assignee and no extra list, and say so in the final summary.
+
+     Show the preview table before creating: title, severity, list, extra list, tags, assignee. When the user said not to be asked, it is information, not a question. If a create call fails, record it and continue with the next one.
+
+     **Association:** after each create, add the ticket to the extra list with `clickup_add_task_to_list`, and confirm it in the read-back (the ticket's lists include it). If that call fails (the Space has "Tasks in Multiple Lists" off), the ticket stays in the bugs list: record it and continue. The final summary lists those tickets with the manual step: open the ticket, add it to the list, pick the sprint.
    - Only `confirmed` bugs classified `new` or `possible regression` (step 6b). Read each ticket back and record its link.
    - **Improvements** (the `### Nice to Have` items) go to ClickUp only under their own `approved` decision.
-     - Use `/report-improvements-to-clickup <qa-report.md>`, or one task per bullet: title `[Improvement] <platform> | <environment> | <suite> | <bullet text verbatim>`, priority Low, the improvements list, and the current sprint if the user named one, with the suite's main screenshot attached.
+     - Use `/report-improvements-to-clickup <qa-report.md>`, or one task per bullet: title `[Improvement] <platform> | <environment> | <suite> | <bullet text verbatim>`, priority Low, the improvements list, with the suite's main screenshot attached. When that decision is approved, ask the same association question for improvements, offering the bugs' answer as the default, and associate them the same way.
      - Without that decision, they stay in the reports and the HTML page.
 4. **HTML results page — required whenever no tickets were created.** That covers four cases:
    - ClickUp mode `off`: the user gave no ClickUp. This is the **only** deliverable: the page, and nothing about ClickUp after it;
