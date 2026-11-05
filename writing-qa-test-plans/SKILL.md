@@ -17,7 +17,7 @@ A QA plan for Herdr execution splits the work into **suites**. Each suite is one
 
 **Announce at start:** "I'm using the writing-qa-test-plans skill to create the QA test plan."
 
-Files in this skill: `plan-template.md` (exact headings, the contract with the executor), `strategy-catalog.md` (every strategy, its tool and model), `orchestration-section-template.md`. The sibling skill **executing-qa-test-plans** (REQUIRED: both are installed together) holds `devices-and-tools.md` and `scratchpad-template.md`.
+Files in this skill: `plan-template.md` (exact headings, the contract with the executor), `strategy-catalog.md` (every strategy, its tool and model), `baseline-audit.md` (planning from an existing regression), `orchestration-section-template.md`. The sibling skill **executing-qa-test-plans** (REQUIRED: both are installed together) holds `devices-and-tools.md` and `scratchpad-template.md`.
 
 ## When to Use
 
@@ -42,10 +42,11 @@ The executor's `SKILL.md` § "Asking the User" has a worked example.
 
 Keep blocking questions to one message, each with a proposed default. While you wait for answers, keep doing the checks that do not depend on them. If the user is in a hurry, draft the whole plan with your proposed defaults, each marked `to confirm`. The user corrects the draft instead of answering a questionnaire.
 
-**Two questions are always asked, in the first message, before any check:**
+**Three questions are always asked, in the first message, before any check:**
 
 - **Platforms.** "What do we test: iOS, Android, web, API, or all of them?" Multi-select, one item per platform, even when the user already named some: the answer is the scope of the plan and is recorded as D1. Nothing outside it is planned, checked, booted or installed (§ Single-Platform Scope).
 - **User types.** First look for them yourself: the vault (if its MCP is connected: notes on roles, permissions, organisations, test accounts), `context/navigation-map.md` (role-dependent sections, tenants), `.env.example` (account variable names such as `ADMIN_EMAIL`, `TEST_USER_EMAIL`). Show what you found as status lines ("✅ Found in the vault: roles admin, operator, end user; accounts `ADMIN_EMAIL`, `TEST_USER_EMAIL`"). Then ask only what is missing: "Which user types does the app have, and which of them should this plan cover?" with the roles you found as items to confirm plus the option to add others, and, per role, the `.env` variable name of its account (never the value). If nothing was found anywhere, ask the open question. A role with no account is still planned: its suites carry the account as a `to confirm` decision, and `multi-tenant-access` / role scenarios are `deferred` with that reason until it exists.
+- **Existing regression.** First look for it yourself: `context/*regression*.md`, `context/*uat*.md`, `context/*test-cases*.md`, `maestro/flows/`, the project's Playwright specs. Show what you found as status lines, then ask: "Does this area or feature already have a regression set? Give me every place it lives: `.md` paths, a repo link, ClickUp test cases (list, test-suite task or Doc), vault notes, or 'none'. If something changed it (a redesign, a new version), also give the tickets or docs that describe the change." Items to confirm: the files you found, plus free text. The answer is recorded as D3 (baseline and change sources). Any baseline → the plan starts from the baseline audit (Before Writing step 6), never from zero. `none` → `Baseline: none (user)` and no audit.
 
 1. **Roles.** You are the plan author and future orchestrator: the only writer of the plan, the scratchpad (`QA-SCRATCHPAD.md` at the QA project root, from `scratchpad-template.md` in executing-qa-test-plans), and the vault.
 2. **Session inputs** (ask once, carry forward):
@@ -81,8 +82,9 @@ Keep blocking questions to one message, each with a proposed default. While you 
    | MCP not connected or failing | Same as the vault: tell the user in one line, and ask whether to fix it first or plan with `ClickUp: none (MCP down)`. Do not wait for the answer; draft with `none`. Bugs stay in each `qa-report.md` Bug Register, ready for `/report-bugs-to-clickup` later. |
    | The user does not use ClickUp, or gives no list or tickets when asked | `ClickUp: none (user)`. Acceptance criteria come from the user or the vault. The executor will not ask again, will not call any ClickUp tool, and will deliver the results as the HTML page only. |
 
-6. **No sources at all** (no vault, no ClickUp, no context files). Requirements come from the user's description. Ask for the 3–5 critical flows. If they cannot list them, plan a first `exploratory` discovery suite per platform whose report becomes the input for a later revision of the plan.
-7. **Tooling, verified, not remembered.** Run each check and record the result:
+6. **Baseline audit** (when the third question named any baseline). Follow `baseline-audit.md` before writing any suite: read every baseline source of the area in full, read the change sources, classify each flow `valid` / `changed` / `deprecated` / `unclear` with its reason and source, find the **missing regression** (behaviours the sources describe that no flow covers, plus the gaps your own coverage review proposes, each with its dimension, risk and priority), and show the result to the user. The suites are then built from the audit: a `functional-regression` suite per platform in scope (on that platform's lane, a scenario per viewport when web is Both) with the `valid`, `changed` and `unclear` flows, the missing `P0` / `P1` rows in the suites their strategy belongs to, and the plan's `## Baseline audit (orchestrator-only section)` with the tables. Every scenario of the area says its origin: a source, or `proposed ·` with its reason.
+7. **No sources at all** (no vault, no ClickUp, no context files, no baseline). Requirements come from the user's description. Ask for the 3–5 critical flows. If they cannot list them, plan a first `exploratory` discovery suite per platform whose report becomes the input for a later revision of the plan.
+8. **Tooling, verified, not remembered.** Run each check and record the result:
    - Android in scope: `adb version`, `emulator -list-avds`. That is all an `adb` lane needs;
    - iOS in scope: `xcrun simctl list devices available`, then which iOS driver exists: `maestro --version` (≥ 2.11) with `java -version` (17+), or `axe --help`;
    - web in scope: Chrome installed (`ls /Applications | grep Chrome`) and `claude --help` lists `--chrome`. Ask the user whether the Claude in Chrome extension is installed and signed in (you cannot check it from here). Playwright is **not** checked unless the user asks for it. When it is: the only check is `npx -y @playwright/mcp@0.0.83 --help` (the pinned version in `devices-and-tools.md`), and the plan writes that exact string in the decision, the Device matrix and the Worker MCP config. A Playwright MCP the user already registered in their own Claude (`claude mcp list`, often `@latest`) is **not** "installed" for the plan: workers never see the user's MCP registrations, only the run's pinned config. Never write `@latest` or an unpinned name anywhere in the plan;
@@ -92,7 +94,7 @@ Keep blocking questions to one message, each with a proposed default. While you 
    **Driver per lane and installs.** Pick each lane's `Tool:` with `devices-and-tools.md` § Driver choice per lane: Android `adb` (no install), iOS `maestro-mcp` if Maestro is installed, else `axe` or Maestro as a `to confirm` install decision, web `chrome`. Every install (Maestro, AXe, Playwright MCP, Java) is a `to confirm` decision with its cost and what it unlocks, never a default and never done by you. Suites on a lane whose driver is not installed are still planned; they cannot start until the user approves. Lanes whose driver exists start first.
 
    **Playwright MCP is opt-in.** Offer it only when the plan needs what Chrome cannot do: parallel web lanes, the 375×667 mobile-web pass, headless, or an isolated profile without the user's logins. The option says it downloads and runs a third-party server with `npx`. If the user says web is Chrome only, the mobile-web viewport scope becomes `N/A (driver)` in the plan.
-8. **Decisions.** A decision **changes scope** if it changes what is tested, on which devices, against which environment, with which accounts, or whether anything is written outside the run (ClickUp tickets, production data). Ask about those. Routine choices (lane naming, suite order within a lane, timeboxes) are yours: `adopted by plan author`.
+9. **Decisions.** A decision **changes scope** if it changes what is tested, on which devices, against which environment, with which accounts, or whether anything is written outside the run (ClickUp tickets, production data). Ask about those. Routine choices (lane naming, suite order within a lane, timeboxes) are yours: `adopted by plan author`.
 
 **Money movement is told and asked here, once, apart from the plan.** A scenario that spends or moves money or value (a payment, purchase, subscription, top-up, transfer, withdrawal, refund or payout; on a blockchain, signing or sending a transaction, a token allowance, a swap, bridge, mint or stake) puts `**Spend:**` on its suite header: what moves, the cap, the account or wallet (`.env` variable name) and the environment (sandbox, testnet, real). Plan its scenarios up to the final Confirm / Pay / Send / Sign step, so they still say something if the user declines it. Once the scenarios are written, and before the plan goes to review, tell the user which scenarios move money (a status line per suite) and ask a separate question for each suite, never inside the plan review:
 
@@ -148,6 +150,7 @@ Use `plan-template.md` exactly. Section order and copy rules:
 | Header (goal, app under test, sources, language) | no (the package gets lane and build details from the Device matrix) |
 | `## Decisions recorded for this plan` | yes |
 | `## Strategy coverage (orchestrator-only section)` | no |
+| `## Baseline audit (orchestrator-only section)` (only with a baseline, from `baseline-audit.md`) | no |
 | `## Global Constraints` | yes |
 | `## Device matrix` | yes |
 | `## Test data and accounts` | yes |
@@ -181,11 +184,12 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
    - **per platform in scope**, `negative-validation`, `text-quality`, `accessibility` and `ui-visual` each have a suite, or a `deferred` / `not applicable` row in the coverage table that names the platform; a platform left without one is listed with the carrier suite that takes the fallback and the extra minutes added to its timebox;
    - tenants and roles found in the context files or named in the user-types answer are covered by `multi-tenant-access` and role scenarios, or deferred with the missing accounts named;
    - the web viewport scope is stated.
-10. The first two questions were asked and answered: platforms (D1) and user types with their account variable names, each recorded as a decision with its source (user / vault / `.env.example`).
+10. The three first questions were asked and answered: platforms (D1), user types with their account variable names (D2), and the existing regression with its change sources (D3), each recorded as a decision with its source (user / vault / `.env.example` / files found).
 11. No `@latest` and no unpinned package name anywhere in the plan (`grep -n 'latest\|@playwright/mcp' <plan>` shows only `@playwright/mcp@0.0.83`, if Playwright is in the plan at all).
 12. Every suite's `Model:` is `sonnet` (`haiku` only for a flow-only rerun). Each `opus`, if any, names in the Orchestration model table the D-number that approved it, with the cost stated; none says "as in the previous run". `grep -n 'Model:\*\* opus' <plan>` lists exactly the suites those D-numbers name.
 13. If the project has Playwright tests (the predicate in Before Writing step 3) and web is in scope, the plan has one `playwright-test` suite with one scenario row per spec file, or the coverage table says why not.
 14. Every scenario that moves money or value has its suite's `**Spend:**` filled and a decision the user answered in a question of its own (`approved`, `approved (stop before the final step)`, `skipped (user)`, or `to confirm` if unanswered); `grep -n -i 'pay\|purchase\|transfer\|checkout\|swap\|mint\|withdraw' <plan>` shows no suite with `**Spend:** none` whose scenarios do.
+15. With a baseline (D3 not `none`): the plan has `## Baseline audit` with every source read (or `not read` and why), every flow of the area classified with a reason that names its source, and the totals. Every `valid`, `changed` and `unclear` flow has a scenario whose Scenario cell starts with the flow id; no `deprecated` flow has one; every `unclear` flow has a `to confirm` decision; every `changed` flow's suite lists its change ticket in `**ClickUp:**` or `**Vault:**`. The `Missing regression` table has both passes (from sources, and the coverage review over every dimension of `baseline-audit.md`), each row with origin, dimension, priority, a plan scenario or `deferred` with the reason, and `add` / `one-off`. Every scenario of the area starts with its flow id, or with `proposed ·` and has a `proposed` row.
 
 ## Handoff
 
@@ -199,7 +203,11 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language, in plai
 | Mistake | Fix |
 |---|---|
 | Two workers "on iOS" sharing the one booted simulator | One lane per device. More parallelism needs more devices: Android gets two `adb` lanes by default, iOS a second lane when AXe is installed, anything else as a decision |
-| Starting the checks before asking what to test | Platforms and user types are the first message, always. The answer is the scope |
+| Starting the checks before asking what to test | Platforms, user types and existing regression are the first message, always. The answer is the scope |
+| Planning a redesigned area from zero when it already has regression flows, or copying every old flow unchanged | Baseline audit first: each flow `valid` / `changed` / `deprecated` / `unclear`, with the change ticket that decides it |
+| A flow marked `deprecated` because the redesign "probably" removed it | `deprecated` only when a change source says so; otherwise `unclear` with a `to confirm` decision |
+| Testing only what the old regression and the tickets list, so the gaps of the regression set stay invisible | Coverage review over every dimension (entry points, states, data, roles, persistence, cross-flow, viewports, the change itself); each gap a `proposed` row with its risk and priority |
+| A proposed scenario mixed in with the baseline flows, unlabelled | Its Scenario cell starts with `proposed ·` and it has a row in `Missing regression`, so the user can tell suggestions from agreed coverage |
 | "The app only has one kind of user" assumed from the login screen | Look in the vault, the navigation map and `.env.example`; then ask. An admin area tested with no admin account is a coverage gap the plan must name |
 | Playwright "installed" because `claude mcp list` shows it | Workers get the run's config with `@playwright/mcp@0.0.83`; a user-level `@latest` registration is irrelevant and `@latest` never appears in a plan |
 | One Android lane "to keep it simple" on a 32 GB Mac | Two `adb` lanes is the default from 16 GB; the second AVD or `--read-only` boot costs nothing to install |
