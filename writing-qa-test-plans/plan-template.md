@@ -20,7 +20,7 @@ Write the plan in the project's language (`{project_language}`); keep the headin
 **First screen text (health check):** iOS "<text>" · Android "<text>" · Web "<text>"
 **Sources:** Vault: <vault name + notes read, or `none` (reason)> · ClickUp: <list/tickets read, or `none` (reason)> · Project context: <`context/navigation-map.md`, `context/regression-flows.md`, `maestro/flows/`, or `none`> · Baseline: <regression sources audited + change sources, see `## Baseline audit`, or `none` (reason)>
 **API:** <base URL · version · auth header, or "none">
-**Language:** <project language> · **Viewport scope (web):** <Desktop 1440×900 | Mobile web 375×667 | Both>
+**Language:** <project language> · **Conversation language:** <the one asked first; the executor proposes it as the default> · **Viewport scope (web):** <Desktop 1440×900 | Mobile web 375×667 | Both>
 
 ## Decisions recorded for this plan
 
