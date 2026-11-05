@@ -4,7 +4,7 @@ When the area under test already has regression coverage, the plan starts from i
 
 **Core rule: every scenario of the area states its origin.** Either a **source** (a baseline flow, a change ticket's acceptance criterion, a vault note, a file the user named), or **`proposed`**: a scenario the planner adds from the coverage review below, with the dimension and the risk that justify it. Both go into the plan; the label lets the user see at a glance what was already agreed and what is the planner's suggestion, and drop suggestions at review.
 
-## Inputs (from the third question of the first message)
+## Inputs (from the first message: the area, and the existing-regression question)
 
 **Baseline sources** — where the existing regression lives. Any mix of:
 
@@ -22,7 +22,7 @@ A source the user names by a part only ("R-25 to R-28 and R-39", "TS-02") limits
 
 **Area map** — the screens, states and entry points of the area, for the coverage review: `context/navigation-map.md`, the change tickets, the screens the baseline flows touch, the vault, and the app's routes or screens in the code when the repo is at hand (read-only).
 
-**Area filter** — a whole-app plan has the whole app as its area. Otherwise a baseline flow belongs to the area when its name, screen, route or source grouping (list, section, test suite) names the area. A flow that touches the area only partly (a checkout that starts from the redesigned screen) belongs to it. When membership is doubtful, include the flow and classify it `unclear`.
+**Area filter** — the area is the one answered in D1. A whole-app plan has the whole app as its area. Otherwise a baseline flow belongs to the area when its name, screen, route or source grouping (list, section, test suite) names the area. A flow that touches the area only partly (a checkout that starts from the redesigned screen) belongs to it. When membership is doubtful, include the flow and classify it `unclear`.
 
 ## Procedure
 

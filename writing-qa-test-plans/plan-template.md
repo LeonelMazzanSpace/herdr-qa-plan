@@ -26,7 +26,7 @@ Write the plan in the project's language (`{project_language}`); keep the headin
 
 | # | Decision | Source | Status |
 |---|---|---|---|
-| D1 | Platforms in scope: <iOS, Android, web, API, or all> (asked first) | user | approved |
+| D1 | Scope: platforms <iOS, Android, web, API, or all> · area <feature name, or the whole app> (asked first) | user | approved |
 | D2 | User types covered: <admin (`ADMIN_EMAIL`), end user (`TEST_USER_EMAIL`), …; roles without an account named> | <user / vault / `.env.example`> | <approved / to confirm> |
 | D3 | Existing regression: <baseline sources (files, ClickUp cases, vault notes) and change sources (tickets), or `none`> (asked first) | <user / files found> | <approved / to confirm> |
 | D4 | <e.g. Two Android `adb` lanes: Pixel_8_API_34 on 5554 and 5556 (`--read-only`), Mac has 32 GB> | plan author | adopted by plan author |
