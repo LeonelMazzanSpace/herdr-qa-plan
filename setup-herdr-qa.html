@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QA Agent Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Single-column technical guide (~70ch) with a sticky index on wide screens; terminal panes as the visual motif. SpaceDev violet accent. */
+:root {
+  --bg: #f7f6fb;
+  --surface: #ffffff;
+  --ink: #17151c;
+  --muted: #5d5868;
+  --line: #e2ddef;
+  --accent: #5b37c6;
+  --accent-soft: #ece6ff;
+  --signal: #b4561a;
+  --signal-soft: #fbeee4;
+  --term-bg: #17131f;
+  --term-ink: #ddd6f0;
+  --term-dim: #8f86a8;
+  --term-line: #2f2840;
+  --term-ok: #6fd3a6;
+  --term-warn: #f0b46b;
+  --font-display: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Open Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #110e17; --surface: #1a1622; --ink: #ebe7f4; --muted: #a39cb5; --line: #2e2840;
+    --accent: #b9a3ff; --accent-soft: #2a2140; --signal: #e89a62; --signal-soft: #34231a;
+    --term-bg: #0b0910;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #110e17; --surface: #1a1622; --ink: #ebe7f4; --muted: #a39cb5; --line: #2e2840;
+  --accent: #b9a3ff; --accent-soft: #2a2140; --signal: #e89a62; --signal-soft: #34231a;
+  --term-bg: #0b0910;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; padding-inline: 16px; padding-block: 0 64px; }
+.shell { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 40px; }
+@media (min-width: 980px) { .shell { grid-template-columns: 220px minmax(0, 1fr); } }
+nav.toc { display: none; }
+@media (min-width: 980px) {
+  nav.toc { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; padding-top: 48px; font-size: 13.5px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  nav.toc a { color: var(--muted); text-decoration: none; display: block; padding: 2px 0 2px 10px; border-left: 2px solid var(--line); }
+  nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .toc-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+}
+main { min-width: 0; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 4.6vw, 3.1rem); font-weight: 700; letter-spacing: -.01em; }
+h2 { font-size: clamp(1.45rem, 2.6vw, 1.85rem); font-weight: 700; margin-bottom: 14px; }
+h3 { font-size: 1.12rem; font-weight: 600; margin: 26px 0 8px; }
+p { margin: 0 0 14px; max-width: 68ch; }
+ul, ol { margin: 0 0 14px; padding-left: 22px; max-width: 68ch; }
+li { margin: 4px 0; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--accent-soft); color: var(--ink); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+header.hero { padding-top: 48px; padding-bottom: 8px; display: flex; flex-direction: column; gap: 16px; }
+header.hero .lede { font-size: 1.15rem; color: var(--muted); max-width: 62ch; margin: 0; }
+section { padding-top: 48px; scroll-margin-top: 16px; }
+section + section { border-top: 1px solid var(--line); margin-top: 48px; }
+.figures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 8px 0 6px; }
+@media (min-width: 640px) { .figures { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.figure { background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; }
+.figure b { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); line-height: 1.1; }
+.figure span { font-size: 13px; color: var(--muted); }
+.caption { font-size: 13px; color: var(--muted); }
+.table-wrap { overflow-x: auto; margin: 10px 0 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 600px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--bg); }
+.tag { display: inline-block; font-family: var(--font-mono); font-size: 11.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.req { color: var(--signal); border-color: var(--signal); background: var(--signal-soft); }
+.tag.opt { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.panes { background: var(--term-bg); color: var(--term-ink); border-radius: 12px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; font-family: var(--font-mono); font-size: 12.5px; margin: 14px 0 8px; }
+@media (min-width: 700px) { .panes { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
+.pane { border: 1px solid var(--term-line); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+.pane .bar { display: flex; justify-content: space-between; gap: 8px; color: var(--term-dim); border-bottom: 1px solid var(--term-line); padding-bottom: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.pane .bar strong { color: var(--term-ink); font-weight: 500; }
+.pane pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: inherit; color: var(--term-ink); }
+.pane .dim { color: var(--term-dim); }
+.pane .hl { color: var(--term-ok); }
+.pane .warn { color: var(--term-warn); }
+.col { display: grid; gap: 8px; min-width: 0; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 18px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+.step small { display: block; font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.arrow { color: var(--muted); font-family: var(--font-mono); }
+.callout { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 18px; margin: 14px 0 18px; max-width: 72ch; }
+.callout.warn { border-left: 4px solid var(--signal); }
+.callout.tip { border-left: 4px solid var(--accent); }
+.callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+.callout .eyebrow { display: block; margin-bottom: 6px; }
+.callout.warn .eyebrow { color: var(--signal); }
+.cases { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 12px 0 18px; }
+@media (min-width: 760px) { .cases { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.case { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); min-width: 0; }
+.case h4 { margin: 0 0 6px; font-family: var(--font-body); font-size: 15px; font-weight: 600; }
+.case p, .case ul { margin: 0; font-size: 14.5px; }
+.case ul { padding-left: 18px; }
+.case .who { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); margin-bottom: 6px; display: block; }
+.mono-block { font-family: var(--font-mono); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; white-space: pre; line-height: 1.55; margin: 10px 0 18px; max-width: 76ch; }
+.mono-block .c { color: var(--muted); }
+ol.steps-setup { list-style: none; counter-reset: setup; padding: 0; margin: 16px 0 0; max-width: 76ch; display: flex; flex-direction: column; gap: 22px; }
+ol.steps-setup > li { counter-increment: setup; position: relative; padding-left: 46px; margin: 0; }
+ol.steps-setup > li::before { content: counter(setup); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-family: var(--font-mono); font-size: 14px; font-weight: 500; display: grid; place-items: center; }
+ol.steps-setup > li > h3 { margin: 2px 0 8px; }
+footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <div class="toc-label">Contents</div>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how-it-works">How it works</a></li>
+      <li><a href="#requirements">Requirements</a></li>
+      <li><a href="#setup">Step-by-step setup</a></li>
+      <li><a href="#scope">By scope</a></li>
+      <li><a href="#first-use">First use</a></li>
+      <li><a href="#results">Where results go</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero" id="overview">
+      <span class="eyebrow">Setup guide · mobile and web QA</span>
+      <h1>QA Agent setup with Herdr and Claude Code</h1>
+      <p class="lede">How to get a Mac ready for a Claude orchestrator to plan and run tests of a mobile app (Xcode simulators and Android Studio emulators) and its web version (Chrome), on several projects at once. Each test strategy runs in an independent Claude worker in its own Herdr pane, and each worker drives a single device.</p>
+      <div class="figures" role="list">
+        <div class="figure" role="listitem"><b>2</b><span>skills: one writes the plan, the other runs it</span></div>
+        <div class="figure" role="listitem"><b>20</b><span>test strategies in the catalog</span></div>
+        <div class="figure" role="listitem"><b>6</b><span>live workers at most per run, plus the orchestrator</span></div>
+        <div class="figure" role="listitem"><b>1</b><span>device per worker: never shared</span></div>
+      </div>
+      <p class="caption">Versions the skills were checked against: Claude Code 2.1.301, Herdr 0.9.1, Maestro CLI 2.11.0, Claude in Chrome extension 1.0.36, <code>@playwright/mcp@0.0.83</code>. Before copying a command, check the <code>--help</code> of the version you have installed.</p>
+    </header>
+
+    <section id="how-it-works">
+      <span class="eyebrow">Architecture</span>
+      <h2>How it works</h2>
+      <p>You work with a Claude session in a Herdr pane: the <strong>orchestrator</strong>. It boots the devices, builds an instruction package per suite and opens a new pane per <strong>lane</strong>. A lane is one device: an iOS simulator, an Android emulator, a browser, or the API. Each pane runs a Claude worker that sees only its package and drives only its device. Each project runs its own orchestrator in its own Herdr workspace, so several projects can be tested at the same time.</p>
+
+      <div class="panes" aria-label="Example of Herdr panes during a run">
+        <div class="pane">
+          <div class="bar"><strong>orch-1 · orchestrator</strong><span>your session</span></div>
+<pre><span class="dim">&gt;</span> /executing-qa-test-plans qa-plans/2026-11-05-bookings.md
+<span class="hl">preflight</span>  adb · maestro 2.11 · herdr 0.9.1 · ctx 12%
+<span class="hl">L1-ios</span>     iPhone 16 Pro booted · app installed
+<span class="hl">L2-android</span> emulator-5554 booted · apk installed
+<span class="hl">L3-web</span>     staging answers 200
+S-001 smoke L1-ios      <span class="dim">→ s001 (sonnet)</span>
+S-004 smoke L2-android  <span class="dim">→ s004 (sonnet)</span>
+S-007 smoke L3-web      <span class="dim">→ s007 (sonnet)</span>
+<span class="warn">BUG-L1-S001-01 high → verify vl1-1</span></pre>
+        </div>
+        <div class="col">
+          <div class="pane">
+            <div class="bar"><strong>s001 · S-001 smoke</strong><span>L1-ios · maestro-mcp</span></div>
+<pre>run  tapOn "Book"   <span class="dim">device_id EFE229C0…</span>
+<span class="warn">FAIL S-001-03</span> no navigation · 03-book.png</pre>
+          </div>
+          <div class="pane">
+            <div class="bar"><strong>s004 · S-004 smoke</strong><span>L2-android · adb</span></div>
+<pre>adb -s emulator-5554 shell input tap 540 1210
+<span class="hl">PASS S-004-01</span> login visible</pre>
+          </div>
+          <div class="pane">
+            <div class="bar"><strong>s007 · S-007 smoke</strong><span>L3-web · chrome</span></div>
+<pre>navigate staging.admin…
+<span class="hl">PASS S-007-02</span> bookings list</pre>
+          </div>
+        </div>
+      </div>
+      <p class="caption">Illustration of the layout: the orchestrator on the left and the workers in columns on the right, each with its own device.</p>
+
+      <div class="flow" aria-label="Run flow">
+        <div class="step"><small>1</small>Plan with writing-qa-test-plans</div><span class="arrow">→</span>
+        <div class="step"><small>2</small>Devices and packages</div><span class="arrow">→</span>
+        <div class="step"><small>3</small>Workers run the suites</div><span class="arrow">→</span>
+        <div class="step"><small>4</small>A verifier re-reproduces the bugs</div><span class="arrow">→</span>
+        <div class="step"><small>5</small>Report: HTML, ClickUp, regression</div>
+      </div>
+    </section>
+
+    <section id="requirements">
+      <span class="eyebrow">Before you start</span>
+      <h2>Requirements</h2>
+      <p>You only need what the platforms you test require. A web-only run needs no Xcode, Android or Maestro, and a mobile-only run needs no browser.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tool</th><th>What for</th><th>When</th><th>Check</th></tr></thead>
+          <tbody>
+            <tr><td>Claude Code</td><td>Orchestrator and workers</td><td><span class="tag req">always</span></td><td><code>claude --version</code></td></tr>
+            <tr><td>Status line with <code>ctx:N%</code></td><td>The orchestrator reads its own context to hand over at 70%</td><td><span class="tag req">always</span></td><td>visible at the bottom of Claude Code</td></tr>
+            <tr><td>Herdr + Claude integration</td><td>Panes and the state of each worker</td><td><span class="tag req">always</span></td><td><code>herdr integration status</code></td></tr>
+            <tr><td><code>herdr</code> and <code>herdr-agent-orchestration</code> skills</td><td>Correct use of the Herdr CLI</td><td><span class="tag req">always</span></td><td><code>ls ~/.claude/skills</code></td></tr>
+            <tr><td>Superpowers plugin</td><td>Verification before claiming anything done</td><td><span class="tag req">always</span></td><td><code>/plugin</code></td></tr>
+            <tr><td><code>jq</code></td><td>Reading Herdr and simctl JSON</td><td><span class="tag req">always</span></td><td><code>jq --version</code></td></tr>
+            <tr><td>System Python 3.9+</td><td>Report checks and the HTML results page</td><td><span class="tag req">always</span></td><td><code>/usr/bin/python3 --version</code></td></tr>
+            <tr><td>Android Studio + an AVD</td><td>Android devices, driven with <code>adb</code> (no install)</td><td><span class="tag">Android</span></td><td><code>emulator -list-avds</code> · <code>adb version</code></td></tr>
+            <tr><td>Xcode + simulators</td><td>iOS devices</td><td><span class="tag">iOS</span></td><td><code>xcrun simctl list devices available</code></td></tr>
+            <tr><td>Maestro CLI 2.11.0 + Java 17+</td><td>Driving the iOS simulator (includes the MCP)</td><td><span class="tag">iOS</span></td><td><code>maestro --version</code> · <code>java -version</code></td></tr>
+            <tr><td>AXe</td><td>iOS without Maestro, or a second iOS lane</td><td><span class="tag opt">optional</span></td><td><code>axe --help</code></td></tr>
+            <tr><td>Chrome + Claude in Chrome ≥ 1.0.36</td><td>The default web driver (<code>--chrome</code>)</td><td><span class="tag">web</span></td><td><code>/chrome</code> in a session</td></tr>
+            <tr><td><code>@playwright/mcp@0.0.83</code> (Node)</td><td>Parallel web lanes, the 375×667 mobile-web pass, isolated profile</td><td><span class="tag opt">only if approved</span></td><td><code>npx -y @playwright/mcp@0.0.83 --help</code></td></tr>
+            <tr><td>The project's Playwright tests</td><td>Run as a regression suite with the project's own runner</td><td><span class="tag opt">if the project has them</span></td><td><code>pnpm exec playwright test --list</code></td></tr>
+            <tr><td>Vault MCP (Obsidian)</td><td>Project requirements and decisions</td><td><span class="tag opt">optional</span></td><td><code>claude mcp list</code></td></tr>
+            <tr><td>ClickUp connector</td><td>Reading tickets and regression cases, filing confirmed bugs</td><td><span class="tag opt">optional</span></td><td><code>claude mcp list</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <span class="eyebrow">Memory</span>
+        <p>An Android emulator uses about 2–4 GB of RAM, an iOS simulator 1–2 GB, a Claude worker about 0.5 GB and a Maestro JVM 0.5–1 GB. On a 16 GB Mac, plan at most 4 devices in total, with no more than 2 Android emulators. Several projects at once share the same machine: add up their lanes.</p>
+      </div>
+    </section>
+
+    <section id="setup">
+      <span class="eyebrow">Step by step</span>
+      <h2>Step-by-step setup</h2>
+      <p>Wherever a value appears between <code>&lt;…&gt;</code>, replace it with yours. <strong>Nothing in the skills installs anything on its own:</strong> Maestro, AXe, Playwright MCP and Java show up in the plan as decisions for you to confirm.</p>
+
+      <ol class="steps-setup">
+        <li>
+          <h3>Install Claude Code and Herdr</h3>
+          <p>Install Herdr from its repository, <a href="https://github.com/herdrdev/herdr">github.com/herdrdev/herdr</a>; it updates later with <code>herdr update</code>. Check the versions:</p>
+<div class="mono-block">claude --version
+herdr --version
+herdr status          <span class="c"># client and server must be compatible</span></div>
+        </li>
+
+        <li>
+          <h3>Connect Herdr with Claude Code</h3>
+          <p>The integration installs a hook that tells Herdr which state each Claude session is in (idle, working, blocked, done). Without it, the orchestrator cannot tell when a worker finished or got stuck.</p>
+<div class="mono-block">herdr integration install claude
+herdr integration status      <span class="c"># must show: claude: current</span></div>
+        </li>
+
+        <li>
+          <h3>Show the context percentage in the status line</h3>
+          <p>The orchestrator reads its own context usage from the pane (<code>ctx:N%</code>) and hands the run to a fresh orchestrator at 70%. The preflight stops if it cannot read it. If you have no status line yet, add this to <code>~/.claude/settings.json</code>; if you already have one, add <code>ctx:N%</code> to it.</p>
+<div class="mono-block">{
+  "statusLine": {
+    "type": "command",
+    "command": "jq -r '\"ctx:\\(.context_window.used_percentage // 0 | floor)%\"'"
+  }
+}</div>
+        </li>
+
+        <li>
+          <h3>Install the Herdr skills and Superpowers</h3>
+<div class="mono-block"><span class="c"># Correct use of the Herdr CLI: panes, agents, states</span>
+npx skills add herdrdev/herdr --skill herdr -g
+
+<span class="c"># Coordination layer: delegation contract, reports, PASS/FAIL/BLOCKED</span>
+npx skills add aerain/herdr-agent-orchestration -g -s herdr-agent-orchestration -a claude-code</div>
+          <p>Superpowers is a plugin, installed inside Claude Code:</p>
+<div class="mono-block">/plugin install superpowers@claude-plugins-official</div>
+        </li>
+
+        <li>
+          <h3>Install the QA skills</h3>
+          <p>Clone the repo and link both skills, so every change in the repo reaches Claude without copying. From the root of the clone:</p>
+<div class="mono-block">git clone git@github.com:LeonelMazzanSpace/herdr-qa-plan.git
+cd herdr-qa-plan
+ln -s "$PWD/writing-qa-test-plans"   ~/.claude/skills/writing-qa-test-plans
+ln -s "$PWD/executing-qa-test-plans" ~/.claude/skills/executing-qa-test-plans
+ls -l ~/.claude/skills | grep qa-test-plans     <span class="c"># both links must show</span></div>
+          <p>To use them in one project only, create the same links inside <code>&lt;project&gt;/.claude/skills/</code>. Open a new Claude Code session and type <code>/</code>: <code>/writing-qa-test-plans</code> and <code>/executing-qa-test-plans</code> must appear. They are manual only (<code>disable-model-invocation: true</code>), so they never start on their own. Update them later with <code>git pull</code> in the clone.</p>
+        </li>
+
+        <li>
+          <h3>Prepare Android (if you test Android)</h3>
+          <p>Install Android Studio, create at least one virtual device in Device Manager, and add the SDK tools to your <code>PATH</code> (for example in <code>~/.zshrc</code>). Android lanes are driven with plain <code>adb</code>: no Maestro and no Java needed. From 16 GB of RAM the plan uses two Android lanes by default (a second AVD, or the same one booted <code>--read-only</code>).</p>
+<div class="mono-block">export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
+
+emulator -list-avds        <span class="c"># e.g. Pixel_8_API_34</span>
+adb version</div>
+          <p>The app needs an <code>.apk</code>. With Expo: an EAS profile with <code>"android": { "buildType": "apk" }</code>, or <code>npx expo run:android --variant release</code>.</p>
+        </li>
+
+        <li>
+          <h3>Prepare iOS (if you test iOS)</h3>
+          <p>Install Xcode from the App Store and its command line tools. In Xcode, open Settings → Components and download an iOS runtime. Then check there are simulators:</p>
+<div class="mono-block">xcode-select --install
+xcrun simctl list devices available     <span class="c"># note the UDID of the iPhone you will use</span></div>
+          <p>Physical iPhones are not supported: iOS tests run on simulators, so the app needs a simulator build (<code>.app</code>), not an <code>.ipa</code>. With Expo: an EAS profile with <code>"ios": { "simulator": true }</code>, or <code>npx expo run:ios --configuration Release</code>.</p>
+          <p>iOS needs one of two drivers. Install it yourself, or let the skill ask you; it never installs on its own:</p>
+<div class="mono-block"><span class="c"># Option A: Maestro CLI, pinned, without piping the script (read it before running it)</span>
+java -version                                          <span class="c"># 17 or later</span>
+curl -fsSL "https://get.maestro.mobile.dev" -o /tmp/maestro-install.sh
+MAESTRO_VERSION=2.11.0 bash /tmp/maestro-install.sh
+maestro --version                                      <span class="c"># 2.11.0</span>
+
+<span class="c"># Option B: AXe, a single binary, no Java (also the way to run a second iOS lane)</span>
+brew install cameroncooke/axe/axe
+axe list-simulators</div>
+          <div class="callout">
+            <span class="eyebrow">Maestro MCP limit</span>
+            <p>The Maestro MCP uses fixed ports per platform, so at most one Maestro MCP worker drives an iPhone at a time. A second iOS lane runs on AXe, or runs existing flow files with <code>maestro test</code>. The orchestrator boots the devices with <code>boot-device.sh</code>; the MCP cannot.</p>
+          </div>
+        </li>
+
+        <li>
+          <h3>Prepare the web (if you test web)</h3>
+          <p>The default web driver is Claude Code's native Chrome. Install the <strong>Claude in Chrome</strong> extension from the Chrome Web Store, sign in to the same claude.ai organisation as your <code>claude</code> (<code>/login</code>, a direct Anthropic plan), keep Chrome open, and allow the domains you will test in the extension's site settings. Check with <code>claude --chrome</code> and <code>/chrome</code> in a session of your own.</p>
+          <div class="callout warn">
+            <span class="eyebrow">Careful</span>
+            <p>This lane acts inside your real Chrome, with your logged-in sessions, and you see every tab it opens. Use it only on your own staging or dev sites, ideally from a dedicated Chrome profile with nothing else signed in and the extension allowing only the QA domains. Chrome runs one web lane at a time and cannot emulate a mobile viewport.</p>
+          </div>
+          <p><strong>Playwright MCP is opt-in.</strong> The plan offers it only for what Chrome cannot do: parallel web lanes, the 375×667 mobile-web pass, headless runs or an isolated profile. It is always the pinned version, never <code>@latest</code>. A Playwright MCP already registered in your own Claude does not count: workers only get the run's config.</p>
+<div class="mono-block">npx -y @playwright/mcp@0.0.83 --help     <span class="c"># --isolated, --viewport-size and --output-dir must appear</span></div>
+          <p>If the project has its own Playwright tests (<code>playwright.config.*</code> or <code>@playwright/test</code> in <code>package.json</code>), the plan runs them as a regression suite with the project's runner (<code>pnpm exec</code>, <code>yarn</code>, <code>npm exec --no --</code>; never a bare <code>npx</code>). Their browsers must already be downloaded.</p>
+        </li>
+
+        <li>
+          <h3>Optional sources: vault and ClickUp</h3>
+          <p>Both are optional. Without them, the plan records <code>none</code> and carries on.</p>
+          <ul>
+            <li><strong>Obsidian vault:</strong> install the local REST API plugin with its MCP endpoint in Obsidian and register it. The key is a secret: never put it in a repo file.</li>
+          </ul>
+<div class="mono-block">claude mcp add --transport http obsidian-mcp http://127.0.0.1:27123/mcp/ \
+  --header "Authorization: Bearer &lt;PLUGIN_API_KEY&gt;"</div>
+          <ul>
+            <li><strong>ClickUp:</strong> connect it from your Claude account's connectors and confirm with <code>claude mcp list</code>. It can be a source (tickets, regression test cases) and a destination (confirmed bugs). If you name no ClickUp, the skill asks once; with no answer, the run never touches ClickUp and delivers the HTML page only.</li>
+          </ul>
+        </li>
+
+        <li>
+          <h3>Prepare the QA project folder</h3>
+          <p>The skills run from the root of a QA project (for example <code>qa-team-spacedev</code>). They use, when present:</p>
+          <ul>
+            <li><code>.env</code>, copied from <code>.env.example</code>: accounts per role (<code>TEST_USER_EMAIL</code>, <code>ADMIN_EMAIL</code>…) and API keys. Never committed; workers never print its values;</li>
+            <li><code>context/navigation-map.md</code> and your regression sources: <code>context/regression-flows*.md</code>, <code>context/*uat*.md</code>, <code>context/*test-cases*.md</code>. The planner finds them on its own and audits them before writing the plan;</li>
+            <li><code>maestro/flows/</code> with YAML flows, and the project's Playwright suite, if they exist;</li>
+            <li>the builds: simulator <code>.app</code> and <code>.apk</code>.</li>
+          </ul>
+          <p>The orchestrator creates <code>qa-plans/</code>, <code>evidence/</code> and <code>QA-SCRATCHPAD.md</code>.</p>
+        </li>
+
+        <li>
+          <h3>Allow the workers to run commands</h3>
+          <p>Workers run <code>adb</code>, <code>simctl</code> and Maestro without asking for each command. The recommended mode is <code>--permission-mode auto</code>; the permission classifier may block launching agents that way, so approve it when the orchestrator asks, or add a rule for <code>herdr agent start</code> in <code>settings.json</code> (the <code>update-config</code> skill helps write it). To supervise every step, use <code>acceptEdits</code> and approve commands in each pane. Every worker also starts with deny rules that block reading <code>.env*</code> and dumping the environment. The orchestrator never answers a worker's permission prompt.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="scope">
+      <span class="eyebrow">One or several platforms</span>
+      <h2>What happens by scope</h2>
+      <p>When writing the plan, the skill asks which platforms are in scope and whether it covers one feature or the whole app. It only plans, checks and boots what belongs to that scope; strategies of the platforms left out are marked not applicable, with the reason.</p>
+      <div class="cases">
+        <div class="case">
+          <span class="who">web only</span>
+          <h4>Browser and, if you want, API</h4>
+          <ul>
+            <li>One Chrome lane; a second one only with Playwright MCP.</li>
+            <li>Asks the viewport: desktop 1440×900, mobile web 375×667, or both.</li>
+            <li>No Xcode, Android, Java or Maestro.</li>
+            <li>Not applicable: interruptions, install/upgrade, device-only checks.</li>
+          </ul>
+        </div>
+        <div class="case">
+          <span class="who">mobile only</span>
+          <h4>iOS, Android or both</h4>
+          <ul>
+            <li>One lane per device: <code>adb</code> on Android, Maestro or AXe on iOS.</li>
+            <li>Checks only the tools of the platforms chosen.</li>
+            <li>Never starts a browser.</li>
+            <li>Not applicable: responsive web, and E2E with the web admin unless it is in scope.</li>
+          </ul>
+        </div>
+        <div class="case">
+          <span class="who">mobile + web</span>
+          <h4>Everything</h4>
+          <ul>
+            <li>iOS, Android and web lanes (and API if asked).</li>
+            <li>Adds cross-platform parity and cross-system E2E: what the app creates is verified in the admin.</li>
+            <li>Up to 5 test lanes at once, plus a verifier.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="first-use">
+      <span class="eyebrow">First use</span>
+      <h2>Plan and run</h2>
+      <p>Open Herdr and start Claude Code inside a pane, so it inherits <code>HERDR_ENV=1</code>. That Claude is the orchestrator. For several projects at once, open one Herdr workspace per project and start an orchestrator in each.</p>
+<div class="mono-block">herdr                          <span class="c"># opens or resumes the Herdr session</span>
+cd &lt;qa-project&gt;
+claude                         <span class="c"># inside the pane</span>
+
+&gt; /writing-qa-test-plans
+&gt; /executing-qa-test-plans qa-plans/2026-11-05-portfolio.md
+&gt; /executing-qa-test-plans status     <span class="c"># progress of a run in progress</span></div>
+      <p><code>/writing-qa-test-plans</code> with nothing else asks, in this order:</p>
+      <ol>
+        <li>the <strong>conversation language</strong>, alone;</li>
+        <li>in one message: <strong>platforms</strong>, <strong>area</strong> (one feature or the whole app), <strong>user types</strong> with their <code>.env</code> variable names, and the <strong>existing regression</strong> with the tickets of the change;</li>
+        <li>session details: environment and base URL, web viewport, builds, project language.</li>
+      </ol>
+      <p>With an existing regression, it audits it first: each flow ends up <code>valid</code>, <code>changed</code>, <code>deprecated</code> or <code>unclear</code>, and it lists the missing regression (from the tickets, and proposed by the skill, marked <code>proposed ·</code>). The plan comes with a plain-language summary and a list of decisions to confirm: installs, extra devices, the ClickUp destination, the permission mode, and any payment, asked separately per suite. Nothing runs until you confirm. During a run you can ask for "status", "what's left" or "stop everything", and watch or step into any pane.</p>
+      <div class="callout tip">
+        <span class="eyebrow">For the first run</span>
+        <p>Start small: a smoke on a single lane. It confirms the driver, the permission mode and the context reading on your machine before you open several lanes or several projects.</p>
+      </div>
+    </section>
+
+    <section id="results">
+      <span class="eyebrow">Output</span>
+      <h2>Where results go</h2>
+<div class="mono-block">evidence/&lt;app&gt;/
+├── S-001-smoke-ios/&lt;run-id&gt;/
+│   ├── qa-report.md              <span class="c"># suite report (ClickUp-compatible format)</span>
+│   └── 01-*.png                  <span class="c"># numbered screenshots</span>
+├── S-005-smoke-web/&lt;run-id&gt;/…
+├── QA-RUN-SUMMARY-&lt;run-id&gt;.md    <span class="c"># score, prioritised bugs, go / no-go</span>
+└── QA-RUN-RESULTS-&lt;run-id&gt;.html  <span class="c"># results page (always when there is no ClickUp)</span></div>
+      <ul>
+        <li><strong>With ClickUp connected and approved:</strong> only bugs confirmed by an independent verifier are filed, after a duplicate search.</li>
+        <li><strong>Without ClickUp:</strong> the run never touches ClickUp, even if connected, and delivers the HTML page only. It opens offline; to share it, send the whole <code>evidence/&lt;app&gt;/</code> folder zipped, since screenshots are linked.</li>
+        <li><strong>Regression set:</strong> at closing, the orchestrator offers the audit's proposed updates (retire, rewrite, add, last successful run) with each flow's outcome, and applies only the ones you approve.</li>
+        <li><strong>Internal packages and worker reports:</strong> <code>~/.cache/qa-runs/&lt;run-id&gt;/</code> (mode 0700).</li>
+      </ul>
+    </section>
+
+    <section id="troubleshooting">
+      <span class="eyebrow">If something fails</span>
+      <h2>Troubleshooting</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td><code>HERDR_ENV</code> empty</td><td>Claude is not running inside a Herdr pane</td><td>Open <code>herdr</code> and start <code>claude</code> from a pane</td></tr>
+            <tr><td>Preflight stops: no <code>ctx:N%</code></td><td>The status line does not show the context percentage</td><td>Add it (setup step 3) and start the orchestrator again</td></tr>
+            <tr><td><code>python3</code>: "No version is set"</td><td>A version manager (asdf) shadows the system Python</td><td>The scripts use <code>/usr/bin/python3</code>; nothing to change</td></tr>
+            <tr><td>Worker BLOCKED: "driver tools missing"</td><td>Wrong MCP config, or the driver is not installed</td><td>The orchestrator fixes the config and relaunches the worker; never replaced with scripts</td></tr>
+            <tr><td>Maestro port or driver connection error</td><td>Two Maestro MCP workers on the same platform at once</td><td>One waits for the other, or the second lane uses AXe or <code>maestro test</code></td></tr>
+            <tr><td><code>uiautomator dump</code> killed (exit 137)</td><td>Maestro's on-device driver still holds the device</td><td><code>adb -s &lt;serial&gt; shell am force-stop dev.mobile.maestro</code> (the orchestrator does it at preflight)</td></tr>
+            <tr><td><code>adb</code> answers from the wrong device</td><td>A command without <code>-s &lt;serial&gt;</code> with two emulators up</td><td>Always <code>adb -s emulator-5554 …</code></td></tr>
+            <tr><td><code>boot-device.sh</code>: "offline" or "port busy"</td><td>A hung emulator left on that port</td><td>Pick another <code>--port</code> or close that emulator</td></tr>
+            <tr><td>Chrome worker: no connected browser, or it stalls on a site</td><td>Chrome closed, extension disconnected, or the domain not allowed</td><td>Open Chrome, <code>/chrome</code> → Reconnect, allow the QA domain in the extension</td></tr>
+            <tr><td>The worker asks permission for every command</td><td>Launched without a write-capable permission mode</td><td>Approve <code>auto</code> or <code>acceptEdits</code> (setup step 11)</td></tr>
+            <tr><td>The project's Playwright suite is BLOCKED</td><td>No local runner, or browsers not downloaded</td><td>Install the project's dependencies and browsers yourself; the skill never runs a bare <code>npx</code></td></tr>
+            <tr><td>The HTML shows "(missing)" for a screenshot</td><td>The report names a file that does not exist</td><td>Fix <code>qa-report.md</code> and render the page again</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      Setup guide for the <code>writing-qa-test-plans</code> and <code>executing-qa-test-plans</code> skills (repo <code>herdr-qa-plan</code>). Commands and versions follow <code>executing-qa-test-plans/devices-and-tools.md</code>; when they disagree, that file wins.
+    </footer>
+  </main>
+</div>
+</body>
+</html>
