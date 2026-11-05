@@ -21,14 +21,42 @@ Las dos son **solo manuales** (`disable-model-invocation: true`): Claude nunca l
 | `writing-qa-test-plans/` | Para armar el plan de testeo. Recorre todas las estrategias del catálogo (smoke, aceptación, regresión, negativas, exploratorio, UI, accesibilidad, localización, interrupciones, red, instalación/upgrade, seguridad, performance, paridad entre plataformas, E2E entre sistemas) y deja cada una incluida, diferida o no aplicable, con su motivo. También define los carriles (un dispositivo por carril), las cuentas y los rangos de datos, el modelo de cada suite y las suites con escenarios concretos. |
 | `executing-qa-test-plans/` | Para ejecutar ese plan: levantar los dispositivos, generar los paquetes, lanzar los workers en Herdr, aceptar cada suite (chequeo mecánico con `check-report.py` más las capturas de los FAIL), re-verificar los bugs con un worker independiente por carril, consolidar el reporte y, si está aprobado, subir a ClickUp los bugs confirmados. También sirve para retomar una corrida. |
 
-Las dos skills arrancan preguntando **en qué idioma conversar** (sola, primero; los mensajes siguientes van en ese idioma, cortos: una línea por estado y por opción, los detalles en archivos). Después, **siempre y antes de cualquier chequeo**: qué plataformas se testean (iOS, Android, web, API o todas) y qué tipos de usuario tiene la app (admin, usuario final, otros roles). Los roles se buscan primero en el vault, en `context/navigation-map.md` y en `.env.example`; solo se pregunta lo que no aparece ahí. `writing-qa-test-plans` suma dos más: **si es una feature puntual** (por ejemplo, Portfolio) **o la app completa**, y **si esa área ya tiene una regresión** y dónde vive (archivos `.md`, un link a un repo, casos de ClickUp, notas del vault), más los tickets o docs del cambio (un rediseño, una versión nueva). Antes de preguntar busca sola `context/*regression*.md`, `context/*uat*.md`, `maestro/flows/` y los specs de Playwright.
+## Primeras preguntas
 
-**Plan a partir de una regresión existente.** Si hay regresión, el plan no arranca de cero: primero hace una auditoría de base (`writing-qa-test-plans/baseline-audit.md`). Lee todas las fuentes del área, clasifica cada flujo como `valid` (sigue valiendo), `changed` (cambia por el rediseño), `deprecated` (lo saca el cambio, solo si un ticket lo dice) o `unclear` (queda `to confirm` para vos), cada uno con el motivo y el ticket que lo decide, Además te dice **qué regresión falta**, de dos formas:
+Las dos skills hablan corto: una línea para lo que está listo, una por problema y una por opción; los detalles quedan en archivos (plan, resumen, página HTML), no en el chat.
 
-- **Desde las fuentes:** lo que piden los tickets del cambio y ningún flujo cubre.
-- **Propuesta por la skill:** recorre el área por dimensiones (puntos de entrada, estados vacío/error/carga, datos límite, roles, persistencia, flujos cruzados, viewports y los componentes nuevos del rediseño) y suma los huecos con riesgo real, cada uno con su motivo, prioridad y si conviene sumarlo al set de regresión.
+`/writing-qa-test-plans`, sin nada más, pregunta:
 
-Te muestra el resultado y recién ahí arma las suites: una de `functional-regression` por plataforma con los flujos que valen o cambian, los faltantes P0/P1 en las suites que les corresponden (los P2 quedan diferidos) y una sección `## Baseline audit` en el plan. Los escenarios propuestos llevan `proposed ·` adelante, así los distinguís de la cobertura ya acordada y podés descartarlos en la revisión. Nunca edita las fuentes de regresión; propone los cambios (qué retirar, reescribir o agregar) para que los apliques vos.
+1. **Idioma de la conversación**, sola y primero. Todo lo que sigue va en ese idioma (el del plan y los reportes es aparte: el idioma del proyecto).
+2. En un solo mensaje, antes de cualquier chequeo:
+   - **plataformas:** iOS, Android, web, API o todas;
+   - **área:** una feature puntual (por ejemplo, Portfolio) o la app completa;
+   - **tipos de usuario** y la variable de `.env` de cada cuenta (nunca el valor). Antes los busca en el vault, `context/navigation-map.md` y `.env.example`;
+   - **regresión existente:** dónde vive (archivos `.md`, un link a un repo, casos de ClickUp, notas del vault) y los tickets o docs del cambio (un rediseño, una versión nueva). Antes busca sola `context/*regression*.md`, `context/*uat*.md`, `context/*test-cases*.md`, `maestro/flows/` y los specs de Playwright.
+3. Datos de la sesión: entorno y URL base, viewport web (1440, 375 o ambos), builds, idioma del proyecto.
+
+`/executing-qa-test-plans <plan>` pregunta primero el idioma (propone el del plan) y después qué plataformas corren en esta corrida y con qué cuentas.
+
+## Plan a partir de una regresión existente
+
+Si el área ya tiene regresión, el plan no arranca de cero: primero hace una **auditoría de base** (`writing-qa-test-plans/baseline-audit.md`).
+
+1. **Lee todas las fuentes del área** y une el mismo flujo cuando aparece en varias.
+2. **Clasifica cada flujo**, con el motivo y el ticket que lo decide:
+   - `valid`: sigue valiendo;
+   - `changed`: cambia por el rediseño (se reescribe solo lo que dice el ticket);
+   - `deprecated`: lo saca el cambio, solo si un ticket lo dice;
+   - `unclear`: queda `to confirm` para vos, nunca se adivina.
+3. **Te dice qué regresión falta**, de dos formas:
+   - **desde las fuentes:** lo que piden los tickets del cambio y ningún flujo cubre;
+   - **propuesta por la skill:** recorre el área por dimensiones (puntos de entrada, estados vacío/error/carga, datos límite, roles, persistencia, flujos cruzados, viewports y los componentes nuevos del rediseño) y suma los huecos con riesgo real, cada uno con su motivo, prioridad y si conviene sumarlo al set de regresión.
+4. **Te muestra el resultado y recién ahí arma las suites:** una de `functional-regression` por plataforma con los flujos que valen, cambian o están en duda; los faltantes P0/P1 en las suites que les corresponden (los P2 quedan diferidos); y la sección `## Baseline audit` en el plan.
+
+Los escenarios propuestos llevan `proposed ·` adelante, así los distinguís de la cobertura ya acordada y podés descartarlos en la revisión. Nunca edita tus fuentes de regresión mientras planifica. Al cerrar la corrida, el ejecutor te muestra las actualizaciones propuestas (retirar, reescribir, agregar, fecha de última corrida exitosa) con el resultado de cada flujo, y aplica solo las que aprobás, archivo por archivo. Lo que vive fuera del proyecto (otro repo, ClickUp, el vault) queda listado para que lo apliques vos.
+
+## Movimientos de dinero
+
+Un escenario que paga, compra, transfiere, reembolsa o firma una transacción on-chain lleva `**Spend:**` en su suite: qué se mueve, el tope, la cuenta o wallet y el entorno (sandbox, testnet, real). El planificador te lo pregunta aparte, una vez por suite: correrlo hasta el tope, prepararlo y frenar antes del paso final (lo recomendado con dinero real), o saltearlo. Durante la corrida no se vuelve a preguntar: el ejecutor hace lo que dice esa decisión, y `make-package.sh` no arma el paquete de prueba ni el de verificación de esa suite sin el bloque de aprobación. Al cierre lista cada movimiento hecho para que lo concilies.
 
 ## Qué evalúa
 
@@ -150,13 +178,13 @@ El cuello de botella no es el emulador sino la cantidad de turnos del modelo y l
 
 ## Instalación
 
-La guía completa, paso a paso, está en [`setup-herdr-qa.html`](setup-herdr-qa.html): Herdr, Claude Code, skills, Xcode, Android, Maestro, Playwright, vault y ClickUp opcionales, permisos y problemas comunes.
+Los pasos de instalación de las dependencias están arriba, en Setup.
 
-Para usarlas en todos los proyectos, enlazalas en tu carpeta personal de skills:
+Para usarlas en todos los proyectos, enlazalas en tu carpeta personal de skills, desde la raíz de este repo:
 
 ```bash
-ln -s "$PWD/skills/writing-qa-test-plans" ~/.claude/skills/writing-qa-test-plans
-ln -s "$PWD/skills/executing-qa-test-plans" ~/.claude/skills/executing-qa-test-plans
+ln -s "$PWD/writing-qa-test-plans" ~/.claude/skills/writing-qa-test-plans
+ln -s "$PWD/executing-qa-test-plans" ~/.claude/skills/executing-qa-test-plans
 ```
 
 Para usarlas solo en un proyecto de QA, enlazalas en su `.claude/skills/`.
