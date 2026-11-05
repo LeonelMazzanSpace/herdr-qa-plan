@@ -178,7 +178,7 @@ The bottleneck is not the emulator but the number of model turns and the bytes e
 
 ## Installation
 
-The dependency setup steps are above, in Setup.
+The full step-by-step guide is [`setup-herdr-qa.html`](setup-herdr-qa.html): requirements, status line, drivers per platform, optional sources, permissions, first use and troubleshooting. The short version is above, in Setup.
 
 To use the skills in every project, link them into your personal skills folder, from the root of this repo:
 
