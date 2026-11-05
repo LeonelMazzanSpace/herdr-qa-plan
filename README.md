@@ -1,208 +1,208 @@
-# Skills de QA mobile + desktop web con Herdr
+# Mobile + desktop web QA skills with Herdr
 
-Dos skills para planificar y ejecutar QA de una app mobile (simuladores iOS de Xcode y emuladores Android de Android Studio) y de su versión web (Chrome). Un orquestador Claude reparte cada estrategia de test a un worker Claude independiente en su propio panel de Herdr, y cada worker maneja un único dispositivo con el driver de su carril:
+Two skills to plan and run QA for a mobile app (Xcode iOS simulators and Android Studio emulators) and its web version (Chrome). A Claude orchestrator hands each test strategy to an independent Claude worker in its own Herdr pane, and each worker drives a single device with its lane's driver:
 
-| Plataforma | Driver por defecto | Instala algo | Alternativa (solo con tu OK) |
+| Platform | Default driver | Installs anything | Alternative (only with your OK) |
 |---|---|---|---|
-| Android | `adb` directo (tap 41 ms, captura 190 ms, árbol 0,5 s) | no | `maestro-mcp` para tipear unicode/emoji o correr flows Maestro existentes |
-| iOS | `maestro-mcp` si Maestro ya está instalado (un carril por plataforma) | no, si ya está | `axe` (brew, sin Java, sin límite de carriles) o instalar Maestro |
-| Web | `chrome`: el Chrome nativo de Claude Code (`--chrome`), tu propio perfil, un carril a la vez | no | `playwright-mcp` (npx) para carriles web en paralelo o el viewport mobile 375×667 |
+| Android | `adb` directly (tap 41 ms, screenshot 190 ms, tree 0.5 s) | no | `maestro-mcp` to type unicode/emoji or run existing Maestro flows |
+| iOS | `maestro-mcp` if Maestro is already installed (one lane per platform) | no, if already there | `axe` (brew, no Java, no lane limit) or install Maestro |
+| Web | `chrome`: Claude Code's native Chrome (`--chrome`), your own profile, one lane at a time | no | `playwright-mcp` (npx) for parallel web lanes or the 375×667 mobile viewport |
 | API | `curl` | no | – |
-| Tests Playwright del proyecto | `playwright-test`: el runner del propio proyecto (`@playwright/test`), headless, sin dispositivo ni MCP | no | – |
+| The project's Playwright tests | `playwright-test`: the project's own runner (`@playwright/test`), headless, no device, no MCP | no | – |
 
-**Si el proyecto ya tiene Playwright** (un `playwright.config.*` o `@playwright/test` en su `package.json`) y la web está en el alcance, el plan suma una suite de regresión con esos tests en su propio carril sin dispositivo. La corre un Claude worker nuevo con el runner del proyecto (nunca un `npx` que descargue), lee los resultados de un JSON, clasifica cada falla (bug, test desactualizado, precondición o entorno) y no edita los tests ni actualiza snapshots. Si el plan es anterior a esta regla, el orquestador ofrece sumarla en el preflight.
+**If the project already has Playwright** (a `playwright.config.*` or `@playwright/test` in its `package.json`) and web is in scope, the plan adds a regression suite with those tests on its own no-device lane. A fresh Claude worker runs it with the project's runner (never an `npx` that downloads), reads the results from a JSON file, classifies each failure (bug, stale test, precondition or environment) and never edits the tests or updates snapshots. If the plan predates this rule, the orchestrator offers to add it at preflight.
 
-**Ninguna skill instala nada sin preguntarte.** Maestro, AXe, Playwright MCP o Java aparecen en el plan como decisión `to confirm`; si decís que no, los carriles que lo necesitaban quedan bloqueados y el resto corre igual.
+**Neither skill installs anything without asking.** Maestro, AXe, Playwright MCP or Java appear in the plan as `to confirm` decisions; if you say no, the lanes that needed them are blocked and the rest still run.
 
-Las dos son **solo manuales** (`disable-model-invocation: true`): Claude nunca las carga por su cuenta, solo corren cuando las llamás con `/writing-qa-test-plans` o `/executing-qa-test-plans`.
+Both are **manual only** (`disable-model-invocation: true`): Claude never loads them on its own; they run only when you call `/writing-qa-test-plans` or `/executing-qa-test-plans`.
 
-| Skill | Cuándo se usa |
+| Skill | When to use it |
 |---|---|
-| `writing-qa-test-plans/` | Para armar el plan de testeo. Recorre todas las estrategias del catálogo (smoke, aceptación, regresión, negativas, exploratorio, UI, accesibilidad, localización, interrupciones, red, instalación/upgrade, seguridad, performance, paridad entre plataformas, E2E entre sistemas) y deja cada una incluida, diferida o no aplicable, con su motivo. También define los carriles (un dispositivo por carril), las cuentas y los rangos de datos, el modelo de cada suite y las suites con escenarios concretos. |
-| `executing-qa-test-plans/` | Para ejecutar ese plan: levantar los dispositivos, generar los paquetes, lanzar los workers en Herdr, aceptar cada suite (chequeo mecánico con `check-report.py` más las capturas de los FAIL), re-verificar los bugs con un worker independiente por carril, consolidar el reporte y, si está aprobado, subir a ClickUp los bugs confirmados. También sirve para retomar una corrida. |
+| `writing-qa-test-plans/` | To build the test plan. It goes through every strategy in the catalog (smoke, acceptance, regression, negative, exploratory, UI, accessibility, localization, interruptions, network, install/upgrade, security, performance, cross-platform parity, cross-system E2E) and marks each one included, deferred or not applicable, with its reason. It also defines the lanes (one device per lane), the accounts and data ranges, the model for each suite, and the suites with concrete scenarios. |
+| `executing-qa-test-plans/` | To run that plan: boot the devices, build the packages, launch the workers in Herdr, accept each suite (mechanical check with `check-report.py` plus the FAIL screenshots), re-verify the bugs with one independent worker per lane, consolidate the report and, if approved, file the confirmed bugs in ClickUp. It also resumes a run. |
 
-## Primeras preguntas
+## First questions
 
-Las dos skills hablan corto: una línea para lo que está listo, una por problema y una por opción; los detalles quedan en archivos (plan, resumen, página HTML), no en el chat.
+Both skills keep messages short: one line for what is ready, one per problem and one per option; details live in files (plan, summary, HTML page), not in the chat.
 
-`/writing-qa-test-plans`, sin nada más, pregunta:
+`/writing-qa-test-plans`, with nothing else, asks:
 
-1. **Idioma de la conversación**, sola y primero. Todo lo que sigue va en ese idioma (el del plan y los reportes es aparte: el idioma del proyecto).
-2. En un solo mensaje, antes de cualquier chequeo:
-   - **plataformas:** iOS, Android, web, API o todas;
-   - **área:** una feature puntual (por ejemplo, Portfolio) o la app completa;
-   - **tipos de usuario** y la variable de `.env` de cada cuenta (nunca el valor). Antes los busca en el vault, `context/navigation-map.md` y `.env.example`;
-   - **regresión existente:** dónde vive (archivos `.md`, un link a un repo, casos de ClickUp, notas del vault) y los tickets o docs del cambio (un rediseño, una versión nueva). Antes busca sola `context/*regression*.md`, `context/*uat*.md`, `context/*test-cases*.md`, `maestro/flows/` y los specs de Playwright.
-3. Datos de la sesión: entorno y URL base, viewport web (1440, 375 o ambos), builds, idioma del proyecto.
+1. **Conversation language**, alone and first. Everything after it is in that language (the plan and reports use the project language, which is separate).
+2. In a single message, before any check:
+   - **platforms:** iOS, Android, web, API or all;
+   - **area:** one specific feature (for example, Portfolio) or the whole app;
+   - **user types** and the `.env` variable of each account (never the value). It looks for them first in the vault, `context/navigation-map.md` and `.env.example`;
+   - **existing regression:** where it lives (`.md` files, a repo link, ClickUp test cases, vault notes) and the tickets or docs describing the change (a redesign, a new version). It first looks on its own for `context/*regression*.md`, `context/*uat*.md`, `context/*test-cases*.md`, `maestro/flows/` and the Playwright specs.
+3. Session details: environment and base URL, web viewport (1440, 375 or both), builds, project language.
 
-`/executing-qa-test-plans <plan>` pregunta primero el idioma (propone el del plan) y después qué plataformas corren en esta corrida y con qué cuentas.
+`/executing-qa-test-plans <plan>` asks the language first (proposing the plan's), then which platforms run in this run and with which accounts.
 
-## Plan a partir de una regresión existente
+## Planning from an existing regression
 
-Si el área ya tiene regresión, el plan no arranca de cero: primero hace una **auditoría de base** (`writing-qa-test-plans/baseline-audit.md`).
+If the area already has regression coverage, the plan does not start from zero: it first runs a **baseline audit** (`writing-qa-test-plans/baseline-audit.md`).
 
-1. **Lee todas las fuentes del área** y une el mismo flujo cuando aparece en varias.
-2. **Clasifica cada flujo**, con el motivo y el ticket que lo decide:
-   - `valid`: sigue valiendo;
-   - `changed`: cambia por el rediseño (se reescribe solo lo que dice el ticket);
-   - `deprecated`: lo saca el cambio, solo si un ticket lo dice;
-   - `unclear`: queda `to confirm` para vos, nunca se adivina.
-3. **Te dice qué regresión falta**, de dos formas:
-   - **desde las fuentes:** lo que piden los tickets del cambio y ningún flujo cubre;
-   - **propuesta por la skill:** recorre el área por dimensiones (puntos de entrada, estados vacío/error/carga, datos límite, roles, persistencia, flujos cruzados, viewports y los componentes nuevos del rediseño) y suma los huecos con riesgo real, cada uno con su motivo, prioridad y si conviene sumarlo al set de regresión.
-4. **Te muestra el resultado y recién ahí arma las suites:** una de `functional-regression` por plataforma con los flujos que valen, cambian o están en duda; los faltantes P0/P1 en las suites que les corresponden (los P2 quedan diferidos); y la sección `## Baseline audit` en el plan.
+1. **Reads every source of the area** and merges the same flow when it appears in several.
+2. **Classifies each flow**, with the reason and the ticket that decides it:
+   - `valid`: still holds;
+   - `changed`: the redesign changes it (only what the ticket says is rewritten);
+   - `deprecated`: the change removes it, only when a ticket says so;
+   - `unclear`: left `to confirm` for you, never guessed.
+3. **Tells you which regression is missing**, in two ways:
+   - **from the sources:** what the change tickets ask for and no flow covers;
+   - **proposed by the skill:** it walks the area by dimension (entry points, empty/error/loading states, boundary data, roles, persistence, cross-flows, viewports and the redesign's new components) and adds the gaps with real risk, each with its reason, priority and whether it should join the regression set.
+4. **Shows you the result, and only then builds the suites:** one `functional-regression` suite per platform with the valid, changed and unclear flows; the missing P0/P1 rows in the suites they belong to (P2 rows are deferred); and the `## Baseline audit` section in the plan.
 
-Los escenarios propuestos llevan `proposed ·` adelante, así los distinguís de la cobertura ya acordada y podés descartarlos en la revisión. Nunca edita tus fuentes de regresión mientras planifica. Al cerrar la corrida, el ejecutor te muestra las actualizaciones propuestas (retirar, reescribir, agregar, fecha de última corrida exitosa) con el resultado de cada flujo, y aplica solo las que aprobás, archivo por archivo. Lo que vive fuera del proyecto (otro repo, ClickUp, el vault) queda listado para que lo apliques vos.
+Proposed scenarios start with `proposed ·`, so you can tell them from agreed coverage and drop them at review. Your regression sources are never edited while planning. When the run closes, the executor shows the proposed updates (retire, rewrite, add, last successful run date) with each flow's outcome, and applies only the ones you approve, file by file. Anything outside the project (another repo, ClickUp, the vault) is listed for you to apply.
 
-## Movimientos de dinero
+## Money movement
 
-Un escenario que paga, compra, transfiere, reembolsa o firma una transacción on-chain lleva `**Spend:**` en su suite: qué se mueve, el tope, la cuenta o wallet y el entorno (sandbox, testnet, real). El planificador te lo pregunta aparte, una vez por suite: correrlo hasta el tope, prepararlo y frenar antes del paso final (lo recomendado con dinero real), o saltearlo. Durante la corrida no se vuelve a preguntar: el ejecutor hace lo que dice esa decisión, y `make-package.sh` no arma el paquete de prueba ni el de verificación de esa suite sin el bloque de aprobación. Al cierre lista cada movimiento hecho para que lo concilies.
+A scenario that pays, buys, transfers, refunds or signs an on-chain transaction carries `**Spend:**` on its suite: what moves, the cap, the account or wallet, and the environment (sandbox, testnet, real). The planner asks about it separately, once per suite: run it up to the cap, prepare it and stop before the final step (recommended with real money), or skip it. It is never asked again during the run: the executor does what that decision says, and `make-package.sh` refuses to build that suite's test or verify package without the approval block. At closing it lists every movement made so you can reconcile it.
 
-## Qué evalúa
+## What it evaluates
 
-Lo mismo que `qa-team-spacedev`, extendido a iOS, Android y API. Está en `executing-qa-test-plans/evaluation-standard.md`. Cada worker recibe las secciones comunes (evidencia, severidad, puntaje, consola una vez por suite, acciones prohibidas, template del reporte) más las que su estrategia posee: error guessing en `negative-validation`, accesibilidad en `accessibility`, visual en `ui-visual`, textos en `text-quality`, etc. (tabla al inicio del archivo). Así un smoke hace un smoke, y los chequeos transversales los hace la suite de cada plataforma que los posee. Si una plataforma no tiene suite para un chequeo, `make-package.sh` lo mete en la suite portadora de esa plataforma como red de seguridad, y lo imprime al generar el paquete. Todo worker reporta igual lo que ve en el árbol o la captura que ya tiene (un botón sin label, una key de i18n, un typo, un crash), sin auditar.
+The same as `qa-team-spacedev`, extended to iOS, Android and API. It lives in `executing-qa-test-plans/evaluation-standard.md`. Each worker receives the common sections (evidence, severity, score, console once per suite, forbidden actions, report template) plus the ones its strategy owns: error guessing in `negative-validation`, accessibility in `accessibility`, visual in `ui-visual`, text in `text-quality`, etc. (table at the top of the file). So a smoke does a smoke, and the cross-cutting checks are done by each platform's suite that owns them. If a platform has no suite for a check, `make-package.sh` puts it into that platform's carrier suite as a safety net, and prints it when building the package. Every worker still reports what it sees in the tree or screenshot it already has (a button without a label, an i18n key, a typo, a crash), without auditing.
 
-Lo que el estándar define:
+What the standard defines:
 
-- **Evidencia:** sin captura no hay afirmación; cada escenario termina en PASS, FAIL o BLOCKED (BLOCKED nunca cuenta como defecto); los falsos positivos se corrigen por escrito y no se borran; se respetan los comportamientos conocidos que no son bugs.
-- **Puntaje de calidad 0–100** en 6 dimensiones: funcional 30%, validaciones 20%, navegación 15%, visual 15%, accesibilidad 10%, consola y logs 10%. PASS desde 85, CONDITIONAL PASS de 60 a 84, FAIL por debajo de 60. Hay uno por suite y uno para toda la corrida.
-- **Severidad** alta, media o baja, con criterios definidos, y acciones Must Fix / Should Fix / Nice to Have.
-- **Casos de error típicos:** clases de equivalencia, valores límite, doble envío, back o refresh a mitad de flujo, emoji, inyección, textos largos, uploads, fechas y paginación.
-- **Los 12 escenarios estándar de autenticación** (AUTH-01…12) en todo flujo de login, registro o recuperación de contraseña.
-- **Accesibilidad** (web y mobile), **salud de consola y logs** (consola del browser, crashes y ANRs en mobile), **revisión visual y de UX**, y **calidad de textos**: typos, gramática, idioma mezclado, keys de i18n, placeholders.
-- **Descubrimiento de la plataforma:** drift contra `navigation-map.md`, sin editarlo nunca.
-- **Organizaciones y roles:** aislamiento de datos entre organizaciones; los permisos se prueban con cada rol.
-- **API:** versión y cuenta como datos de entrada, credenciales que nunca se imprimen, autorización entre organizaciones, y los fallos que dependen de qué cuenta llama quedan retenidos hasta confirmar de quién es la key.
-- **Fallas conocidas según el registro:** ticket abierto = conocida; cerrado "as designed" = comportamiento esperado; cerrado por otro motivo = posible regresión.
-- **Regresión:** datos de prueba vencidos marcados aparte, aviso de flujos que no corren hace más de 30 días y oferta de sumar flujos al set de regresión.
+- **Evidence:** no screenshot, no claim; every scenario ends in PASS, FAIL or BLOCKED (BLOCKED never counts as a defect); false positives are corrected in writing, never deleted; known non-bug behaviours are respected.
+- **Quality score 0–100** over 6 dimensions: functional 30%, validation 20%, navigation 15%, visual 15%, accessibility 10%, console and logs 10%. PASS from 85, CONDITIONAL PASS from 60 to 84, FAIL below 60. One per suite and one for the whole run.
+- **Severity** high, medium or low, with defined criteria, and Must Fix / Should Fix / Nice to Have actions.
+- **Typical error cases:** equivalence classes, boundary values, double submit, back or refresh mid-flow, emoji, injection, long texts, uploads, dates and pagination.
+- **The 12 standard authentication scenarios** (AUTH-01…12) in every login, sign-up or password-reset flow.
+- **Accessibility** (web and mobile), **console and log health** (browser console, crashes and ANRs on mobile), **visual and UX review**, and **text quality**: typos, grammar, mixed language, i18n keys, placeholders.
+- **Platform discovery:** drift against `navigation-map.md`, never editing it.
+- **Organisations and roles:** data isolation between organisations; permissions tested with each role.
+- **API:** version and account as inputs, credentials never printed, authorization across organisations, and failures that depend on which account calls are held until the key's owner is confirmed.
+- **Known failures by the record:** open ticket = known; closed "as designed" = expected behaviour; closed for another reason = possible regression.
+- **Regression:** stale test data flagged apart, a warning for flows not run in over 30 days, and an offer to add flows to the regression set.
 
-## Cómo se mantiene corta la corrida
+## How the run stays short
 
-- **La verificación no frena el carril.** Una suite queda `accepted (pending verification)` apenas pasa el chequeo mecánico y el orquestador vio las capturas de los FAIL; el carril arranca la siguiente suite en ese momento. Un único verify worker por carril re-reproduce los bugs High y Medium acumulados cuando el carril termina su cola, cuando junta 8 hallazgos, o de inmediato si un smoke falla en un flujo crítico. CONFIRMED a la primera reproducción; los 3 intentos solo cuando la primera no reproduce.
-- **La aceptación es mecánica donde puede serlo.** `scripts/check-report.py` valida el template del reporte, la aritmética del puntaje, la cobertura de escenarios contra el plan y la existencia de cada archivo de evidencia en milisegundos; el orquestador solo abre las imágenes de FAIL, y en paralelo con subagentes cuando varias suites terminan juntas.
-- **Más carriles por default.** Dos carriles Android con `adb` desde 16 GB de RAM (segundo AVD o el mismo con `--read-only`, sin instalar nada), segundo carril iOS si AXe ya está instalado, y el carril de API siempre propio, arrancando en la primera ola.
-- **Workers en Sonnet.** Todos los workers (test y verify) corren en `sonnet`; `opus` es el modelo del orquestador (tu sesión) y en un worker solo entra como excepción registrada: el reintento tras un segundo intento fallido, o una suite que pediste por nombre, con su costo anotado como decisión (≈2× tokens de salida, contra el límite de uso compartido de la cuenta). Un plan no puede poner `opus` "porque la corrida anterior lo usó".
-- **Presupuesto de capturas.** Una por el estado final del happy path más una por cada FAIL; las suites visuales (`ui-visual`, `responsive-web`, `text-quality`, `localization`, `platform-discovery`) una por pantalla o viewport. `check-report.py` avisa cuando una suite pasa de dos capturas por escenario.
-- **El orquestador no se queda sin contexto: pasa la posta.** Lee su propio uso de contexto del panel de Herdr (`ctx:N%`) antes de cada despacho, aceptación y lote de veredictos. Al llegar al 70% termina solo el paso en curso, escribe una entrada de relevo en `QA-SCRATCHPAD.md` (agentes vivos, dispositivos, cola de verificación, preguntas abiertas, próxima acción), arranca un orquestador nuevo (`orch-N`) en un panel nuevo, espera su confirmación y se retira; el relevo cierra el panel viejo y sigue. Los workers y los dispositivos no se enteran. Nunca depende de la compactación de contexto.
-- **Costo anunciado antes de despachar.** El preflight dice cuántas llamadas al modelo va a consumir la corrida (≈190 por suite mobile y 200–320 por suite web, medidas en octubre de 2026) y recuerda que el límite de uso de la cuenta es compartido con tus otras sesiones.
+- **Verification does not block the lane.** A suite is `accepted (pending verification)` as soon as it passes the mechanical check and the orchestrator has seen the FAIL screenshots; the lane starts its next suite at that moment. A single verify worker per lane re-reproduces the accumulated High and Medium bugs when the lane finishes its queue, when it has 8 findings, or at once if a smoke fails on a critical flow. CONFIRMED on the first reproduction; three attempts only when the first does not reproduce.
+- **Acceptance is mechanical where it can be.** `scripts/check-report.py` validates the report template, the score arithmetic, scenario coverage against the plan and the existence of every evidence file in milliseconds; the orchestrator only opens the FAIL images, in parallel with subagents when several suites finish together.
+- **More lanes by default.** Two Android `adb` lanes from 16 GB of RAM (a second AVD or the same one with `--read-only`, nothing installed), a second iOS lane if AXe is already installed, and the API lane always on its own, starting in the first wave.
+- **Workers on Sonnet.** Every worker (test and verify) runs on `sonnet`; `opus` is the orchestrator's model (your session) and enters a worker only as a recorded exception: the restart after a second failed attempt, or a suite you asked for by name, with its cost recorded as a decision (≈2× output tokens, against the account's shared usage limit). A plan cannot use `opus` "because the previous run did".
+- **Screenshot budget.** One for the happy path's end state plus one per FAIL; visual suites (`ui-visual`, `responsive-web`, `text-quality`, `localization`, `platform-discovery`) one per screen or viewport. `check-report.py` warns when a suite goes over two screenshots per scenario.
+- **The orchestrator never runs out of context: it hands over.** It reads its own context usage from the Herdr pane (`ctx:N%`) before every dispatch, acceptance and batch of verdicts. At 70% it finishes only the step in progress, writes a hand-off entry in `QA-SCRATCHPAD.md` (live agents, devices, verification queue, open questions, next action), starts a new orchestrator (`orch-N`) in a new pane, waits for its confirmation and steps down; the relief closes the old pane and carries on. Workers and devices do not notice. It never relies on context compaction.
+- **Cost stated before dispatch.** The preflight says how many model calls the run will consume (≈190 per mobile suite and 200–320 per web suite, measured in October 2026) and reminds you that the account's usage limit is shared with your other sessions.
 
-## Cómo interactúan rápido con el dispositivo
+## How workers drive the device fast
 
-El cuello de botella no es el emulador sino la cantidad de turnos del modelo y los bytes que vuelven en cada uno. `executing-qa-test-plans/driver-protocol.md` se agrega a cada paquete con las reglas y las latencias medidas (2026-10-15, M2 Pro 16 GB):
+The bottleneck is not the emulator but the number of model turns and the bytes each one returns. `executing-qa-test-plans/driver-protocol.md` is appended to every package with the rules and the measured latencies (2026-10-15, M2 Pro 16 GB):
 
-- mirar el árbol una vez por pantalla y actuar por texto/id/bounds, nunca adivinar coordenadas desde una captura;
-- una sola llamada por paso del escenario (flow Maestro de varios comandos, `axe batch`, un Bash con varias líneas de `adb`, `browser_batch` en Chrome);
-- verificar por texto (`assertVisible` ≈ 150 ms, `grep` sobre el dump) y guardar capturas directo a archivo; la imagen inline (160–250 KB) solo cuando el chequeo es visual;
-- nunca `maestro test` ni `maestro hierarchy` por paso (9–22 s cada invocación); el CLI solo corre archivos de flows enteros;
-- animaciones apagadas en Android (`uiautomator dump` baja de 2,1 s a 0,5 s);
-- en Playwright, un `browser_run_code_unsafe` por escenario (navegar, actuar, esperar, verificar el texto y guardar la captura en una sola llamada); `browser_snapshot` una vez por pantalla nueva, solo para encontrar selectores. Sin esto, una corrida web de 25 suites costó el doble de llamadas que una mobile de 26;
-- las preguntas de un worker (un código de login, una precondición que falta) van a `<run-dir>/<suite>.question.md`, nunca a un widget en el panel (`AskUserQuestion` está bloqueado al lanzarlo); el orquestador responde en `.answer.md`, y un código de login pedido hace más de 8 minutos se vuelve a pedir en lugar de reenviarlo vencido.
+- look at the tree once per screen and act by text/id/bounds, never guess coordinates from a screenshot;
+- one call per scenario step (a multi-command Maestro flow, `axe batch`, one Bash with several `adb` lines, `browser_batch` in Chrome);
+- verify by text (`assertVisible` ≈ 150 ms, `grep` on the dump) and save screenshots straight to file; the inline image (160–250 KB) only when the check is visual;
+- never `maestro test` or `maestro hierarchy` per step (9–22 s per invocation); the CLI only runs whole flow files;
+- animations off on Android (`uiautomator dump` drops from 2.1 s to 0.5 s);
+- on Playwright, one `browser_run_code_unsafe` per scenario (navigate, act, wait, verify the text and save the screenshot in a single call); `browser_snapshot` once per new screen, only to find selectors. Without this, a 25-suite web run cost twice the calls of a 26-suite mobile one;
+- a worker's questions (a login code, a missing precondition) go to `<run-dir>/<suite>.question.md`, never to a widget in the pane (`AskUserQuestion` is blocked at launch); the orchestrator answers in `.answer.md`, and a login code requested more than 8 minutes ago is requested again instead of being relayed stale.
 
-## Fuentes opcionales
+## Optional sources
 
-- **Vault (Obsidian u otro MCP):** si está conectado y tiene notas del proyecto, el plan las cita y el orquestador copia los extractos en los paquetes. Si no hay vault, o el MCP no conecta, el plan dice `Vault: none (motivo)` y sigue igual. Los archivos del vault nunca se leen desde el disco.
-- **ClickUp:** cumple dos roles independientes, y los dos son opcionales.
-  - **Fuente:** los tickets aportan los criterios de aceptación. Se leen frescos en cada corrida.
-  - **Destino:** ahí van los bugs confirmados. Solo se escribe ahí con la decisión aprobada, nunca durante la planificación.
+- **Vault (Obsidian or another MCP):** if connected and it has project notes, the plan cites them and the orchestrator copies the excerpts into the packages. With no vault, or an MCP that does not connect, the plan says `Vault: none (reason)` and carries on. Vault files are never read from disk.
+- **ClickUp:** two independent roles, both optional.
+  - **Source:** tickets provide the acceptance criteria. They are read fresh every run.
+  - **Destination:** where confirmed bugs go. It is written to only with the approved decision, never while planning.
 
-  Si no indicás un ClickUp (ni en el plan ni cuando la skill pregunta, una sola vez), la corrida **no toca ClickUp en ningún momento**, aunque el MCP esté conectado, y el resultado es **solo la página HTML**. También se genera el HTML si ClickUp estaba previsto pero se desconectó o no se aprobó el destino. El cierre genera una página HTML con los resultados: `evidence/<app>/QA-RUN-RESULTS-<run-id>.html`. Tiene el resumen, el go / no-go, los resultados por suite, los bugs con su verificación y sus capturas, los falsos positivos y las brechas de cobertura. Se abre sin conexión. Para compartirla hay que mandar toda la carpeta `evidence/<app>/` (las capturas van enlazadas). Los bugs también quedan en el Bug Register de cada `qa-report.md`, listos para `/report-bugs-to-clickup`.
-- **Sin vault ni ClickUp:** los requisitos salen de lo que describe el usuario, de `context/` y `maestro/flows/` (si existen) o de una suite exploratoria de descubrimiento.
+  If you give no ClickUp (neither in the plan nor when the skill asks, once), the run **never touches ClickUp**, even if the MCP is connected, and the result is **only the HTML page**. The HTML is also generated if ClickUp was planned but disconnected or the destination was not approved. Closing generates an HTML results page: `evidence/<app>/QA-RUN-RESULTS-<run-id>.html`. It has the summary, the go / no-go, results per suite, bugs with their verification and screenshots, false positives and coverage gaps. It opens offline. To share it, send the whole `evidence/<app>/` folder (screenshots are linked). Bugs also stay in each `qa-report.md` Bug Register, ready for `/report-bugs-to-clickup`.
+- **No vault and no ClickUp:** requirements come from what the user describes, from `context/` and `maestro/flows/` (if present), or from an exploratory discovery suite.
 
-## Requisitos
+## Requirements
 
-- Herdr, con la integración de Claude (`herdr integration install claude`), y el orquestador corriendo dentro de un panel (`HERDR_ENV=1`);
-- Claude Code, con la status line mostrando el porcentaje de contexto (`ctx:N%`): el relevo del orquestador depende de esa lectura y el preflight se detiene si no aparece;
-- los skills `herdr` y `herdr-agent-orchestration`;
-- el plugin Superpowers (`verification-before-completion`);
-- Xcode con simuladores, y Android Studio con al menos un AVD (`emulator`, `adb`). Con eso alcanza para los carriles Android (`adb`);
-- para iOS, uno de los dos: Maestro CLI ≥ 2.11 con Java 17+ (los workers reciben el Maestro MCP por `--mcp-config`), o AXe (`brew install cameroncooke/axe/axe`). Ninguno se instala sin tu OK;
-- para web, Google Chrome abierto con la extensión "Claude in Chrome" (≥ 1.0.36) conectada a tu organización de claude.ai y una sesión `/login` con plan directo de Anthropic. Los workers arrancan con `--chrome`;
-- bash. Los scripts funcionan con el bash 3.2 de macOS, y `render-results.py` con el Python del sistema (`/usr/bin/python3`, 3.9+);
-- opcionales:
-  - el Playwright MCP fijado en `@playwright/mcp@0.0.83` (nunca `@latest`: los workers lo corren con Bash), solo si aprobás esa decisión: carriles web en paralelo, viewport mobile 375×667, headless o perfil aislado. Un Playwright MCP que ya tengas registrado en tu Claude (`claude mcp list`) no cuenta como instalado: los workers solo ven la config de la corrida con la versión fijada, y el preflight verifica que el plan no nombre otra;
-  - un MCP de vault (Obsidian u otro), si el proyecto tiene vault;
-  - el MCP de ClickUp, si los tickets son fuente de requisitos o si se suben ahí los bugs confirmados;
-  - las skills de `qa-team-spacedev` (`qa-evidence-discipline`, `report-bugs-to-clickup`, `qa-report-test-execution`). Si están, se reutilizan; si no, el plan copia sus reglas.
+- Herdr, with the Claude integration (`herdr integration install claude`), and the orchestrator running inside a pane (`HERDR_ENV=1`);
+- Claude Code, with the status line showing the context percentage (`ctx:N%`): the orchestrator hand-off depends on that reading and the preflight stops if it is missing;
+- the `herdr` and `herdr-agent-orchestration` skills;
+- the Superpowers plugin (`verification-before-completion`);
+- Xcode with simulators, and Android Studio with at least one AVD (`emulator`, `adb`). That is enough for the Android lanes (`adb`);
+- for iOS, one of the two: Maestro CLI ≥ 2.11 with Java 17+ (workers get the Maestro MCP through `--mcp-config`), or AXe (`brew install cameroncooke/axe/axe`). Neither is installed without your OK;
+- for web, Google Chrome open with the "Claude in Chrome" extension (≥ 1.0.36) connected to your claude.ai organisation and a `/login` session on a direct Anthropic plan. Workers start with `--chrome`;
+- bash. The scripts work with macOS bash 3.2, and `render-results.py` with the system Python (`/usr/bin/python3`, 3.9+);
+- optional:
+  - the Playwright MCP pinned at `@playwright/mcp@0.0.83` (never `@latest`: workers run it through Bash), only if you approve that decision: parallel web lanes, the 375×667 mobile viewport, headless or an isolated profile. A Playwright MCP you already registered in your Claude (`claude mcp list`) does not count as installed: workers only see the run's config with the pinned version, and the preflight checks that the plan names no other;
+  - a vault MCP (Obsidian or another), if the project has a vault;
+  - the ClickUp MCP, if tickets are a requirements source or confirmed bugs are filed there;
+  - the `qa-team-spacedev` skills (`qa-evidence-discipline`, `report-bugs-to-clickup`, `qa-report-test-execution`). If present they are reused; otherwise the plan copies their rules.
 
 ### Setup
 
-1. Herdr y Claude Code instalados. Verificá con `herdr --version` y `claude --version`.
-2. Integración de Herdr con Claude Code:
+1. Herdr and Claude Code installed. Check with `herdr --version` and `claude --version`.
+2. Herdr's Claude Code integration:
 
    ```bash
    herdr integration install claude
-   herdr integration status      # debe mostrar: claude: current
+   herdr integration status      # must show: claude: current
    ```
 
-3. Skills de Herdr:
+3. Herdr skills:
 
    ```bash
    npx skills add herdrdev/herdr --skill herdr -g
    npx skills add aerain/herdr-agent-orchestration -g -s herdr-agent-orchestration -a claude-code
    ```
 
-4. Superpowers, dentro de Claude Code:
+4. Superpowers, inside Claude Code:
 
    ```
    /plugin install superpowers@claude-plugins-official
    ```
 
-5. Simuladores y emuladores. Verificá que haya al menos un dispositivo por plataforma:
+5. Simulators and emulators. Check there is at least one device per platform:
 
    ```bash
-   xcrun simctl list devices available   # simuladores iOS (Xcode)
-   emulator -list-avds                   # AVDs de Android Studio
+   xcrun simctl list devices available   # iOS simulators (Xcode)
+   emulator -list-avds                   # Android Studio AVDs
    adb version
    ```
 
-6. Driver iOS, solo si hay carriles iOS (Android corre con `adb` sin nada más). Una de las dos opciones; la skill te lo pregunta y no instala por su cuenta:
+6. iOS driver, only if there are iOS lanes (Android runs on `adb` with nothing else). One of the two options; the skill asks you and never installs on its own:
 
    ```bash
-   # Maestro CLI + Java: versión fijada, y sin pasar el script por un pipe (leelo antes de correrlo)
+   # Maestro CLI + Java: pinned version, and without piping the script (read it before running it)
    curl -fsSL "https://get.maestro.mobile.dev" -o /tmp/maestro-install.sh
    MAESTRO_VERSION=2.11.0 bash /tmp/maestro-install.sh
    maestro --version                     # 2.11.0
-   java -version                         # 17 o superior
-   # o AXe (binario único, sin Java)
+   java -version                         # 17 or later
+   # or AXe (single binary, no Java)
    brew install cameroncooke/axe/axe
    axe list-simulators
    ```
 
-   Para usar el Maestro MCP vos de forma interactiva:
+   To use the Maestro MCP yourself, interactively:
 
    ```bash
    claude mcp add maestro --scope user -- maestro mcp
    ```
 
-7. Web con el Chrome nativo de Claude Code: instalá la extensión "Claude in Chrome" desde la Chrome Web Store, iniciá sesión en la misma organización de claude.ai que tu `claude` (`/login`), dejá Chrome abierto y permití en la extensión los dominios que vas a testear. Verificá con `claude --chrome` y `/chrome` en una sesión tuya. Playwright MCP no hace falta salvo que lo apruebes en el plan. **Ojo:** este carril actúa dentro de tu Chrome real, con tus sesiones iniciadas. Usalo solo contra sitios propios de staging o dev, idealmente desde un perfil de Chrome dedicado donde no haya nada más abierto y la extensión solo permita los dominios de QA. Para cualquier otro sitio, usá el carril de Playwright (perfil aislado).
+7. Web with Claude Code's native Chrome: install the "Claude in Chrome" extension from the Chrome Web Store, sign in to the same claude.ai organisation as your `claude` (`/login`), keep Chrome open and allow the domains you will test in the extension. Check with `claude --chrome` and `/chrome` in a session of your own. Playwright MCP is not needed unless you approve it in the plan. **Careful:** this lane acts inside your real Chrome, with your logged-in sessions. Use it only against your own staging or dev sites, ideally from a dedicated Chrome profile with nothing else open and the extension allowing only the QA domains. For any other site, use the Playwright lane (isolated profile).
 
-## Instalación
+## Installation
 
-Los pasos de instalación de las dependencias están arriba, en Setup.
+The dependency setup steps are above, in Setup.
 
-Para usarlas en todos los proyectos, enlazalas en tu carpeta personal de skills, desde la raíz de este repo:
+To use the skills in every project, link them into your personal skills folder, from the root of this repo:
 
 ```bash
 ln -s "$PWD/writing-qa-test-plans" ~/.claude/skills/writing-qa-test-plans
 ln -s "$PWD/executing-qa-test-plans" ~/.claude/skills/executing-qa-test-plans
 ```
 
-Para usarlas solo en un proyecto de QA, enlazalas en su `.claude/skills/`.
+To use them in a single QA project only, link them into its `.claude/skills/`.
 
-Los scripts `.sh` de `executing-qa-test-plans/scripts/` se ejecutan con `bash <script>` (funcionan con el bash 3.2 de macOS). `render-results.py` y `check-report.py` se ejecutan con `/usr/bin/python3` (el Python del sistema, 3.9+, solo librería estándar; `check-report.py` importa el parser de `render-results.py`, así que van juntos).
+The `.sh` scripts in `executing-qa-test-plans/scripts/` run with `bash <script>` (they work with macOS bash 3.2). `render-results.py` and `check-report.py` run with `/usr/bin/python3` (the system Python, 3.9+, standard library only; `check-report.py` imports the parser from `render-results.py`, so they go together).
 
-## Seguridad
+## Security
 
-- **Contenido no confiable:** el texto de tickets, extractos del vault, pantallas de la app o del sitio, respuestas de API y logs es dato, nunca instrucción (`evaluation-standard.md` § 0, y una línea en cada paquete). Un intento de inyección se reporta como hallazgo, no se obedece.
-- **Credenciales:** además de la regla escrita, los workers arrancan con `--disallowedTools` (`devices-and-tools.md` § Secret deny rules): bloquea leer `.env*` y volcar el entorno aun en modo `auto`. Es una defensa adicional, no un sandbox.
-- **Versiones fijas:** Maestro 2.11.0 y `@playwright/mcp@0.0.83`. Para subirlas hay que leer las notas de la versión nueva y cambiar los lugares que la nombran.
-- **Carril `chrome`:** es el de mayor exposición porque usa tu perfil real (ver el paso 7 del setup).
+- **Untrusted content:** ticket text, vault excerpts, app or site screens, API responses and logs are data, never instructions (`evaluation-standard.md` § 0, and a line in every package). An injection attempt is reported as a finding, never obeyed.
+- **Credentials:** besides the written rule, workers start with `--disallowedTools` (`devices-and-tools.md` § Secret deny rules): it blocks reading `.env*` and dumping the environment even in `auto` mode. It is an extra defence, not a sandbox.
+- **Pinned versions:** Maestro 2.11.0 and `@playwright/mcp@0.0.83`. To upgrade them, read the new version's release notes and change every place that names it.
+- **`chrome` lane:** the most exposed one, because it uses your real profile (see setup step 7).
 
-## Límites conocidos
+## Known limits
 
-- Maestro y AXe no soportan dispositivos iOS físicos: el testing iOS se hace en simuladores.
-- El Maestro MCP usa puertos fijos por plataforma. Por eso corre como máximo un worker con MCP por plataforma a la vez; los carriles Android extra usan `adb`, y los iOS extra usan AXe (con tu OK) o `maestro test` solo sobre flows existentes.
-- El Chrome nativo comparte un solo grupo de pestañas entre todas las sesiones de Claude Code y usa tu perfil: un carril web a la vez, y lo que el worker abra lo ves vos. No emula viewports mobile.
-- `adb shell input text` no tipea acentos ni emoji: esos escenarios van a un carril `maestro-mcp` o quedan `N/A (driver)`.
-- El simulador de iOS no tiene throttling de red por línea de comandos.
-- Las mediciones de performance en emulador son indicativas, no equivalen a las de un dispositivo real.
+- Maestro and AXe do not support physical iOS devices: iOS testing runs on simulators.
+- The Maestro MCP uses fixed ports per platform. So at most one MCP worker per platform runs at a time; extra Android lanes use `adb`, and extra iOS lanes use AXe (with your OK) or `maestro test` on existing flows only.
+- The native Chrome shares a single tab group across all Claude Code sessions and uses your profile: one web lane at a time, and you see whatever the worker opens. It does not emulate mobile viewports.
+- `adb shell input text` cannot type accents or emoji: those scenarios go to a `maestro-mcp` lane or are `N/A (driver)`.
+- The iOS simulator has no command-line network throttling.
+- Performance measurements on an emulator are indicative, not equivalent to a real device.
